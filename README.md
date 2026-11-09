@@ -37,7 +37,9 @@ and red closes in from the edges of the screen.
 Above the log is your suit camera: a NASA photograph of a real spacecraft
 interior for each kind of room, graded dark and run through scanlines and
 static. Whatever is in the room appears in it as a black shape with light
-leaking round its edge, breathing, and lunging when it hits you. On deeper
+leaking round its edge, breathing, and lunging when it hits you. Each time you
+hit it the camera catches what it really is (pixel creatures from Dungeon
+Crawl Stone Soup's CC0 tile set), and once it is nearly dead it stops hiding. On deeper
 decks the picture is replaced, for a tenth of a second, by something else.
 
 Every asset is free and credited in [public/CREDITS.md](public/CREDITS.md).

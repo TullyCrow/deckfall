@@ -42,10 +42,16 @@ Each was cropped, darkened and colour-graded for the game. NASA does not endorse
 
 `og.jpg` (the link-preview card) is made from the same photograph as `title.jpg`.
 
+## Creatures
+
+The creatures seen in the suit camera are tiles from [Dungeon Crawl Stone Soup](https://github.com/crawl/crawl),
+drawn by its contributors and released under CC0 1.0. They are used unmodified. The file-by-file list is in
+[sprites/CREDITS.md](sprites/CREDITS.md).
+
 ## Animation
 
-`fx/static.gif` (television snow) was generated for this project and is released under CC0. The moving figures
-in the camera view are the game-icons.net icons credited below, animated in CSS.
+`fx/static.gif` (television snow) was generated for this project and is released under CC0. The dark
+shapes in the camera view are the game-icons.net icons credited below, animated in CSS.
 
 ## Texture
 

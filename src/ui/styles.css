@@ -1125,6 +1125,48 @@ input::placeholder {
   --glow: rgb(224 86 76 / 0.8);
 }
 
+/* The creature itself: a small pixel sprite, scaled up hard, the way a bad feed would show it. */
+.sprite-true {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  /* Pulled back so it sits in the dark room instead of glowing on top of it. */
+  filter: brightness(0.8) saturate(0.75) contrast(1.1);
+  opacity: 0;
+  animation: glimpse 560ms steps(7, jump-none) 1;
+}
+
+/* While the creature is glimpsed, its silhouette steps aside so the two shapes never overlap. */
+.sprite:has(.sprite-true) > .sprite-struck {
+  animation: tuck 560ms linear 1;
+}
+
+.sprite:has(.sprite-true) > .sprite-ghost {
+  opacity: 0.12;
+}
+
+.sprite-revealed .sprite-true {
+  opacity: 1;
+  animation: resolve 500ms steps(5, jump-none) 1;
+}
+
+.sprite-revealed > .icon {
+  opacity: 0;
+  animation: none;
+}
+
+.feed-apparition {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  width: 46%;
+  transform: translateX(-50%);
+  image-rendering: pixelated;
+  filter: grayscale(1) contrast(1.6) brightness(1.3);
+}
+
 /* A faint double that never quite lines up with the thing itself. */
 .sprite > .sprite-ghost {
   opacity: 0.3;
@@ -1298,6 +1340,45 @@ body::after {
   }
   70% {
     transform: translate(-2%, 5%) scale(1.02);
+  }
+}
+
+@keyframes glimpse {
+  0% {
+    opacity: 1;
+    filter: brightness(1.9) saturate(0.4) contrast(1.3);
+  }
+  30% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes tuck {
+  0%,
+  80% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes resolve {
+  0% {
+    opacity: 0;
+    filter: brightness(2.2) saturate(0);
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 1;
   }
 }
 
