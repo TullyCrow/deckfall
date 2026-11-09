@@ -16,9 +16,9 @@ import {
   LOG_CAP,
   LOW_HP,
   MIMIC_CHANCE,
-  PARTS_BY_RARITY,
-  POD_LINES,
-  POD_REST_HEAL,
+  SHARDS_BY_RARITY,
+  SANCTUM_LINES,
+  SANCTUM_REST_HEAL,
   POTION_HEAL,
   ROOMS_PER_FLOOR,
   SAVE_VERSION,
@@ -26,11 +26,12 @@ import {
   SHRINE_SACRIFICE_COST,
   START_POTIONS,
   STAT_CAPS,
-  SURGEON_LINES,
-  TRADER_LINES,
+  SHRINE_LINES,
+  PEDDLER_LINES,
   WHISPERS,
+  WRATH,
 } from './data';
-import { itemName, makeItem, nextRarity, overclock } from './items';
+import { itemName, makeItem, nextRarity, temper } from './items';
 import { createRng, hashSeed, type Rng } from './rng';
 import {
   SLOTS,
@@ -76,9 +77,9 @@ export function sacrificeCost(player: Player): number {
   return Math.round(playerStats(player).maxHp * SHRINE_SACRIFICE_COST);
 }
 
-/** Parts needed for this item's next overclock. */
-export function overclockCost(item: Item): number {
-  return CRAFT.overclock * ((item.plus ?? 0) + 1);
+/** Parts needed for this item's next temper. */
+export function temperCost(item: Item): number {
+  return CRAFT.temper * ((item.plus ?? 0) + 1);
 }
 
 export function isBossFloor(floor: number): boolean {
@@ -88,8 +89,8 @@ export function isBossFloor(floor: number): boolean {
 // ---------- Public API ----------
 
 /**
- * `returning` marks a retry of a ship the player has already died on. It changes
- * only the opening line, never the ship.
+ * `returning` marks a retry of a dungeon the player has already died in. It changes
+ * only the opening line, never the dungeon.
  */
 export function newGame(seed: string, returning = false): GameState {
   const state: GameState = {
@@ -101,18 +102,19 @@ export function newGame(seed: string, returning = false): GameState {
     floor: 1,
     room: 0,
     heard: [],
-    podPending: false,
+    sanctumPending: false,
     pendingBoons: 0,
     player: {
       level: 1,
       xp: 0,
       hp: BASE_STATS.maxHp,
       base: { ...BASE_STATS },
-      equipment: { weapon: null, armour: null, gadget: null },
+      equipment: { weapon: null, armour: null, trinket: null },
       bag: [],
       gold: 0,
       potions: START_POTIONS,
-      parts: 0,
+      shards: 0,
+      wrath: 0,
     },
     phase: { type: 'doors', doors: [] },
     log: [],
@@ -122,8 +124,8 @@ export function newGame(seed: string, returning = false): GameState {
   say(
     state,
     returning
-      ? 'The airlock seals behind you. You know this corridor. It has been waiting.'
-      : 'The airlock seals behind you. Your lamp finds the corridor. Nothing answers your hail.',
+      ? 'The cathedral doors close behind you. You know these stones. They know you.'
+      : 'The cathedral doors close behind you. Your torch finds the nave. Nothing answers.',
     'info',
   );
   state.phase = { type: 'doors', doors: makeDoors(state, rng) };
@@ -174,9 +176,22 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       const before = player.hp;
       player.potions--;
       player.hp = Math.min(maxHp, player.hp + Math.round(maxHp * POTION_HEAL));
-      say(d, `The stim hits. +${player.hp - before} HP. Your hands stop shaking.`, 'good', 'stim');
+      say(d, `You drink. +${player.hp - before} life. The taste is copper.`, 'good', 'potion');
       // Injecting mid-fight costs your place in the turn order.
       if (phase.type === 'combat') phase.gauge = 0;
+      return true;
+    }
+
+    case 'smite': {
+      if (phase.type !== 'combat' || player.wrath < WRATH.max) return false;
+      const stats = playerStats(player);
+      const enemy = phase.enemy;
+      player.wrath = 0;
+      const { damage } = strike(rng, stats.atk * WRATH.smite, 0, 100, enemy.def);
+      enemy.hp = Math.max(0, enemy.hp - damage);
+      d.tally.damage += damage;
+      say(d, `You smite the ${bare(enemy)} for ${damage}.`, 'hit', 'smite');
+      if (enemy.hp === 0) win(d, phase, rng);
       return true;
     }
 
@@ -188,7 +203,7 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
         say(d, `You run. The ${enemy.name} does not follow. You do not look back to be sure.`, 'info');
         settle(d, rng);
       } else {
-        say(d, `The ${enemy.name} is already between you and the hatch.`, 'bad');
+        say(d, `The ${enemy.name} is already between you and the door.`, 'bad');
         enemy.gauge = 0;
         enemyAttack(d, phase, rng);
       }
@@ -224,8 +239,8 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
     }
 
     case 'continue': {
-      if (phase.type !== 'loot' && phase.type !== 'shrine' && phase.type !== 'merchant' && phase.type !== 'pod') return false;
-      if (phase.type === 'pod') say(d, `You open the pod. Deck ${d.floor} is waiting.`, 'info', 'hatch');
+      if (phase.type !== 'loot' && phase.type !== 'shrine' && phase.type !== 'merchant' && phase.type !== 'sanctum') return false;
+      if (phase.type === 'sanctum') say(d, `You open the sanctum door. Depth ${d.floor} is waiting.`, 'info', 'door');
       settle(d, rng);
       return true;
     }
@@ -250,10 +265,10 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       const item = player.bag[index];
       if (!item) return false;
       player.bag.splice(index, 1);
-      const parts = PARTS_BY_RARITY[item.rarity];
+      const shards = SHARDS_BY_RARITY[item.rarity];
       gainGold(d, item.value);
-      player.parts += parts;
-      say(d, `You scrap the ${itemName(item)}: ${item.value} credits, ${parts} ${parts === 1 ? 'part' : 'parts'}.`, 'loot');
+      player.shards += shards;
+      say(d, `You salvage the ${itemName(item)}: ${item.value} gold, ${shards} ${shards === 1 ? 'shard' : 'shards'}.`, 'loot');
       return true;
     }
 
@@ -265,7 +280,7 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       // New max HP arrives filled, so Reinforced Frame is never a dead pick at low health.
       player.hp += boon.mods.maxHp ?? 0;
       d.pendingBoons--;
-      say(d, `Augment installed: ${boon.name} (${boon.desc}).`, 'good', 'augment');
+      say(d, `Talent learned: ${boon.name} (${boon.desc}).`, 'good', 'talent');
       settle(d, rng);
       return true;
     }
@@ -276,13 +291,13 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       if (action.choice === 'rest') {
         const before = player.hp;
         player.hp = Math.min(maxHp, player.hp + Math.round(maxHp * SHRINE_REST_HEAL));
-        say(d, `The auto-surgeon closes your wounds. +${player.hp - before} HP. It hums while it works.`, 'good');
+        say(d, `You kneel. Your wounds close. +${player.hp - before} life.`, 'good');
       } else {
         const cost = sacrificeCost(player);
         if (player.hp <= cost) return false;
         player.hp -= cost;
         d.pendingBoons++;
-        say(d, `The auto-surgeon opens you up. -${cost} HP. You watch it put something in.`, 'bad');
+        say(d, `You cut your palm over the altar. -${cost} life. Something answers.`, 'bad');
       }
       settle(d, rng);
       return true;
@@ -295,65 +310,65 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       player.gold -= entry.price;
       phase.stock.splice(action.index, 1);
       player.bag.push(entry.item);
-      say(d, `You buy the ${entry.item.name} for ${entry.price} credits.`, 'loot');
+      say(d, `You buy the ${entry.item.name} for ${entry.price} gold.`, 'loot');
       return true;
     }
 
     case 'rest': {
-      if (phase.type !== 'pod' || phase.rested) return false;
+      if (phase.type !== 'sanctum' || phase.rested) return false;
       const { maxHp } = playerStats(player);
       if (player.hp >= maxHp) return false;
       const before = player.hp;
-      player.hp = Math.min(maxHp, player.hp + Math.round(maxHp * POD_REST_HEAL));
+      player.hp = Math.min(maxHp, player.hp + Math.round(maxHp * SANCTUM_REST_HEAL));
       phase.rested = true;
-      say(d, `You sit with your back to the hatch and close your eyes. +${player.hp - before} HP.`, 'good');
+      say(d, `You drink from the fountain and sit a while with your back to the door. +${player.hp - before} life.`, 'good');
       return true;
     }
 
     case 'craft': {
-      if (phase.type !== 'pod') return false;
+      if (phase.type !== 'sanctum') return false;
       switch (action.recipe) {
-        case 'stim': {
-          if (player.parts < CRAFT.stim) return false;
-          player.parts -= CRAFT.stim;
+        case 'potion': {
+          if (player.shards < CRAFT.potion) return false;
+          player.shards -= CRAFT.potion;
           player.potions++;
-          say(d, 'You mix a stim at the workbench.', 'good', 'craft');
+          say(d, 'You brew a potion over the forge.', 'good', 'craft');
           return true;
         }
-        case 'overclock': {
+        case 'temper': {
           const item = player.equipment[action.slot];
-          if (!item || (item.plus ?? 0) >= CRAFT.overclockMax) return false;
-          const cost = overclockCost(item);
-          if (player.parts < cost) return false;
-          player.parts -= cost;
-          overclock(item, CRAFT.overclockGain);
-          say(d, `You overclock it: ${itemName(item)}. It runs hot.`, 'good', 'craft');
+          if (!item || (item.plus ?? 0) >= CRAFT.temperMax) return false;
+          const cost = temperCost(item);
+          if (player.shards < cost) return false;
+          player.shards -= cost;
+          temper(item, CRAFT.temperGain);
+          say(d, `You temper it on the anvil: ${itemName(item)}.`, 'good', 'craft');
           return true;
         }
-        case 'recalibrate': {
+        case 'reforge': {
           const item = player.equipment[action.slot];
-          if (!item || player.parts < CRAFT.recalibrate) return false;
-          player.parts -= CRAFT.recalibrate;
+          if (!item || player.shards < CRAFT.reforge) return false;
+          player.shards -= CRAFT.reforge;
           const fresh = makeItem(rng, d.nextId++, Math.max(item.level - (item.plus ?? 0), d.floor), 0, {
             slot: item.slot,
             rarity: item.rarity,
           });
-          // Overclocks are work already paid for, so they carry over to the new roll.
-          for (let i = 0; i < (item.plus ?? 0); i++) overclock(fresh, CRAFT.overclockGain);
+          // Tempers are work already paid for, so they carry over to the new roll.
+          for (let i = 0; i < (item.plus ?? 0); i++) temper(fresh, CRAFT.temperGain);
           player.equipment[action.slot] = fresh;
           player.hp = Math.min(player.hp, playerStats(player).maxHp);
-          say(d, `You strip the ${item.name} down and rebuild it: ${itemName(fresh)}.`, 'good', 'craft');
+          say(d, `You melt the ${item.name} down and forge it anew: ${itemName(fresh)}.`, 'good', 'craft');
           return true;
         }
-        case 'fuse': {
+        case 'transmute': {
           const better = nextRarity(action.rarity);
-          const used = player.bag.filter((item) => item.rarity === action.rarity).slice(0, CRAFT.fuseCount);
-          if (!better || used.length < CRAFT.fuseCount || player.parts < CRAFT.fuse) return false;
-          player.parts -= CRAFT.fuse;
+          const used = player.bag.filter((item) => item.rarity === action.rarity).slice(0, CRAFT.transmuteCount);
+          if (!better || used.length < CRAFT.transmuteCount || player.shards < CRAFT.transmute) return false;
+          player.shards -= CRAFT.transmute;
           player.bag = player.bag.filter((item) => !used.includes(item));
           const made = makeItem(rng, d.nextId++, d.floor, 0, { rarity: better });
           player.bag.push(made);
-          say(d, `Three become one. You lift a ${made.name} off the bench.`, 'loot', 'craft');
+          say(d, `Three become one. You lift a ${made.name} from the coals.`, 'loot', 'craft');
           return true;
         }
       }
@@ -363,7 +378,7 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       if (phase.type !== 'merchant' || player.gold < phase.potionPrice) return false;
       player.gold -= phase.potionPrice;
       player.potions++;
-      say(d, `You buy a stim for ${phase.potionPrice} credits.`, 'loot');
+      say(d, `You buy a potion for ${phase.potionPrice} gold.`, 'loot');
       return true;
     }
   }
@@ -380,11 +395,11 @@ function settle(d: GameState, rng: Rng): void {
     d.phase = { type: 'boon', choices };
     return;
   }
-  // The lift always stops at a safe pod before it opens onto the next deck.
-  if (d.podPending) {
-    d.podPending = false;
-    say(d, POD_LINES[Math.min(POD_LINES.length - 1, Math.floor((d.floor - 2) / 2))] as string, 'info', 'hatch');
-    d.phase = { type: 'pod', rested: false };
+  // The stair always passes a sanctum before it reaches the next depth.
+  if (d.sanctumPending) {
+    d.sanctumPending = false;
+    say(d, SANCTUM_LINES[Math.min(SANCTUM_LINES.length - 1, Math.floor((d.floor - 2) / 2))] as string, 'info', 'door');
+    d.phase = { type: 'sanctum', rested: false };
     return;
   }
   whisper(d);
@@ -392,7 +407,7 @@ function settle(d: GameState, rng: Rng): void {
 }
 
 /**
- * Sometimes adds an unsettling line before the next set of hatches, more often the deeper you are.
+ * Sometimes adds an unsettling line before the next set of doors, more often the deeper you are.
  * It draws from its own generator, keyed to where you are in the run, so atmosphere can be
  * rewritten freely without changing how any seed plays.
  */
@@ -460,24 +475,25 @@ function enterRoom(d: GameState, kind: RoomKind, rng: Rng): void {
       break;
     case 'treasure': {
       if (rng.chance(MIMIC_CHANCE)) {
-        say(d, 'The crate unfolds. It was never a crate.', 'bad');
+        say(d, 'The chest opens its eyes.', 'bad');
         startCombat(d, makeEnemy(rng, d.floor, 'normal', AMBUSH), kind);
         break;
       }
       const gold = rng.int(8, 14) + 4 * d.floor;
       gainGold(d, gold);
-      say(d, `The crate was already unsealed. ${gold} credits, and something left behind.`, 'loot');
+      say(d, `A chest, its lock already broken. ${gold} gold, and something left behind.`, 'loot');
       const items = [newItem(d, rng, 0.6)];
       if (rng.chance(0.25)) items.push(newItem(d, rng, 0.6));
+      announce(d, items);
       d.phase = { type: 'loot', items };
       break;
     }
     case 'shrine':
-      say(d, SURGEON_LINES[(d.floor + d.room) % SURGEON_LINES.length] as string, 'info', 'hatch');
+      say(d, SHRINE_LINES[(d.floor + d.room) % SHRINE_LINES.length] as string, 'info', 'door');
       d.phase = { type: 'shrine' };
       break;
     case 'merchant': {
-      say(d, TRADER_LINES[(d.floor + d.room) % TRADER_LINES.length] as string, 'info', 'hatch');
+      say(d, PEDDLER_LINES[(d.floor + d.room) % PEDDLER_LINES.length] as string, 'info', 'door');
       const stock = [0, 1, 2].map(() => {
         const item = newItem(d, rng, 1);
         return { item, price: item.value * 4 };
@@ -491,8 +507,8 @@ function enterRoom(d: GameState, kind: RoomKind, rng: Rng): void {
 function descend(d: GameState): void {
   d.floor++;
   d.room = 0;
-  d.podPending = true;
-  say(d, `The lift takes you down toward deck ${d.floor}.`, 'info');
+  d.sanctumPending = true;
+  say(d, `You take the stair down toward depth ${d.floor}.`, 'info');
 }
 
 function newItem(d: GameState, rng: Rng, luck: number): Item {
@@ -535,8 +551,8 @@ export function makeEnemy(rng: Rng, floor: number, kind: EnemyKind, override?: {
 }
 
 function startCombat(d: GameState, enemy: Enemy, room: RoomKind): void {
-  if (enemy.kind === 'boss') say(d, `${enemy.name} has been waiting for you.`, 'bad', 'hatch');
-  else say(d, `${article(enemy)} ${enemy.name} is in the room with you.`, enemy.kind === 'normal' ? 'info' : 'bad', 'hatch');
+  if (enemy.kind === 'boss') say(d, `${enemy.name} has been waiting for you.`, 'bad', 'door');
+  else say(d, `${article(enemy)} ${enemy.name} turns to face you.`, enemy.kind === 'normal' ? 'info' : 'bad', 'door');
   d.phase = { type: 'combat', enemy, room, gauge: 0 };
 }
 
@@ -570,11 +586,12 @@ function combatStep(d: GameState, phase: CombatPhase, rng: Rng): void {
     const { damage, isCrit } = strike(rng, stats.atk, stats.crit, stats.critDmg, enemy.def);
     enemy.hp = Math.max(0, enemy.hp - damage);
     d.tally.damage += damage;
+    d.player.wrath = Math.min(WRATH.max, d.player.wrath + WRATH.perHit);
     let line = isCrit ? `Critical hit! ${damage} damage` : `You hit for ${damage}`;
     if (stats.leech > 0 && d.player.hp < stats.maxHp) {
       const healed = Math.min(stats.maxHp - d.player.hp, Math.max(1, Math.round((damage * stats.leech) / 100)));
       d.player.hp += healed;
-      line += `, siphoning ${healed}`;
+      line += `, stealing ${healed} life`;
     }
     say(d, `${line}.`, 'hit', isCrit ? 'crit' : undefined);
     if (enemy.hp === 0) win(d, phase, rng);
@@ -589,9 +606,10 @@ function enemyAttack(d: GameState, phase: CombatPhase, rng: Rng): void {
   const enemy = phase.enemy;
   const { damage, isCrit } = strike(rng, enemy.atk, 5, 150, playerStats(d.player).def);
   d.player.hp = Math.max(0, d.player.hp - damage);
+  d.player.wrath = Math.min(WRATH.max, d.player.wrath + WRATH.perWound);
   say(d, `The ${bare(enemy)} ${isCrit ? 'lands a brutal blow' : 'hits you'} for ${damage}.`, 'hurt');
   if (d.player.hp === 0) {
-    say(d, `You go down on deck ${d.floor}. Your lamp stays on for a while. Then it does not.`, 'bad', 'death');
+    say(d, `You fall on depth ${d.floor}. Your torch burns a while longer. Then it does not.`, 'bad', 'death');
     d.phase = { type: 'dead', killedBy: enemy.name };
   }
 }
@@ -609,10 +627,10 @@ function win(d: GameState, phase: CombatPhase, rng: Rng): void {
   const xp = Math.round((8 + 4 * enemy.level) * scale.xp);
   const gold = Math.round((rng.int(3, 6) + 2 * enemy.level) * scale.gold);
   gainGold(d, gold);
-  player.parts += scale.parts;
+  player.shards += scale.shards;
   say(
     d,
-    `The ${bare(enemy)} stops moving. +${xp} XP, +${gold} credits, +${scale.parts} ${scale.parts === 1 ? 'part' : 'parts'}.`,
+    `The ${bare(enemy)} dies. +${xp} XP, +${gold} gold, +${scale.shards} ${scale.shards === 1 ? 'shard' : 'shards'}.`,
     'good',
   );
 
@@ -623,7 +641,7 @@ function win(d: GameState, phase: CombatPhase, rng: Rng): void {
     d.pendingBoons++;
     const { maxHp } = playerStats(player);
     player.hp = Math.min(maxHp, player.hp + Math.round(maxHp * LEVEL_UP_HEAL));
-    say(d, `Level ${player.level}. An augment slot opens.`, 'good');
+    say(d, `Level ${player.level}. You may learn a talent.`, 'good');
   }
 
   const items: Item[] = [];
@@ -634,9 +652,16 @@ function win(d: GameState, phase: CombatPhase, rng: Rng): void {
   else if (rng.chance(0.35)) items.push(newItem(d, rng, 0));
 
   if (enemy.kind === 'boss') descend(d);
+  announce(d, items);
 
   if (items.length > 0) d.phase = { type: 'loot', items };
   else settle(d, rng);
+}
+
+/** A Legendary or Mythic find gets its own line in the log, and its own sound. */
+function announce(d: GameState, items: Item[]): void {
+  const best = items.find((item) => item.rarity === 'legendary') ?? items.find((item) => item.rarity === 'epic');
+  if (best) say(d, `A pillar of light. ${best.name}.`, 'loot', 'drop');
 }
 
 // ---------- Helpers ----------

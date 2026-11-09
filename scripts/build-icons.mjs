@@ -16,30 +16,15 @@ const AUTHORS = {
 };
 
 const ICONS = [
-  // Hostiles
-  'delapouite/rat', 'delapouite/floating-tentacles', 'delapouite/mono-wheel-robot', 'delapouite/slime',
-  'delapouite/bandit', 'delapouite/shambling-zombie', 'delapouite/battle-mech', 'lorc/spectre',
-  'lorc/pirate-skull', 'delapouite/alien-bug', 'delapouite/cyborg-face', 'delapouite/mimic-chest',
-  // Deck guardians
-  'lorc/robot-golem', 'lorc/alien-stare', 'delapouite/captain-hat-profile', 'lord-berandas/artificial-intelligence',
-  // Weapons
-  'skoll/telescopic-baton', 'john-colburn/pistol-gun', 'lorc/ray-gun', 'lorc/lightning-saber',
-  'sbed/laser-gun', 'sbed/rifle', 'lorc/energy-sword',
-  // Armour
-  'delapouite/hazmat-suit', 'lorc/leather-vest', 'skoll/kevlar-vest', 'lorc/armor-vest',
-  'delapouite/chest-armor', 'lorc/space-suit',
-  // Gadgets
-  'lorc/microchip', 'lorc/radar-dish', 'lorc/circuitry', 'lorc/shield-reflect', 'delapouite/atom-core',
-  // Hatches
-  'lorc/claw-slashes', 'lorc/dread-skull', 'delapouite/cargo-crate', 'sbed/medical-pack', 'lorc/trade',
-  'lorc/crowned-skull', 'delapouite/elevator', 'delapouite/secret-door',
-  // Augments
-  'lorc/muscle-up', 'lorc/targeting', 'lorc/layered-armor', 'lorc/sprint', 'delapouite/cyber-eye',
-  'lorc/lightning-frequency', 'delapouite/nano-bot',
-  // Misc
-  'lorc/syringe', 'delapouite/astronaut-helmet',
-  // Atmosphere
-  'lorc/terror', 'lorc/static-waves', 'lorc/silence', 'lorc/semi-closed-eye',
+  // Doors
+  'lorc/claw-slashes', 'lorc/dread-skull', 'lorc/locked-chest', 'lorc/holy-symbol', 'delapouite/two-coins',
+  'lorc/crowned-skull', 'delapouite/stairs', 'delapouite/secret-door',
+  // Talents
+  'delapouite/heart-beats', 'lorc/muscle-up', 'lorc/layered-armor', 'lorc/sprint', 'lorc/targeting',
+  'lorc/bloody-sword', 'lorc/heart-drop',
+  // Actions and screens
+  'lorc/sword-clash', 'lorc/knapsack', 'lorc/anvil', 'lorc/crystalize', 'lorc/fountain',
+  'lorc/static-waves', 'lorc/silence',
 ];
 
 const source = process.argv[2];

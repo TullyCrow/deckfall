@@ -1,12 +1,14 @@
 /**
  * Sound for Deckfall.
  *
- * The ambience is built from real recordings made by NASA spacecraft (see CREDITS.md):
- * Saturn's radio emissions as the bed, wind on Mars as the air in the corridors, and
- * the Perseverance rover's metal creaks as things you are not sure you heard. Everything
- * is slowed down, which is most of what makes it unsettling.
+ * The dungeon's ambience is built from real recordings made by NASA spacecraft (see
+ * CREDITS.md): Saturn's radio emissions as the drone under everything, wind on Mars as
+ * the air in the halls, and the Perseverance rover's metal creaks as things moving
+ * somewhere you cannot see. Everything is slowed down, which is most of what makes it
+ * sound like a place far underground.
  *
- * Short effects (hits, hatches, the heartbeat) are synthesised here, so they cost no download.
+ * Short effects (blows, doors, the heartbeat, a legendary drop) are synthesised here,
+ * so they cost no download.
  *
  * Browsers only allow sound after a tap, so nothing plays until `start()` is called from one.
  */
@@ -28,15 +30,27 @@ const STINGS = [
   'sting-signal-3.mp3',
 ] as const;
 
-export type Effect = 'hatch' | 'hit' | 'crit' | 'hurt' | 'pickup' | 'augment' | 'whisper' | 'death' | 'stim' | 'craft';
+export type Effect =
+  | 'door'
+  | 'hit'
+  | 'crit'
+  | 'hurt'
+  | 'pickup'
+  | 'talent'
+  | 'whisper'
+  | 'death'
+  | 'potion'
+  | 'craft'
+  | 'smite'
+  | 'drop';
 
 export interface Mood {
-  /** Current deck. Deeper is louder, lower and busier. */
+  /** Current depth. Deeper is louder, lower and busier. */
   deck: number;
   /** Badly hurt: the heartbeat starts. */
   low: boolean;
   dead: boolean;
-  /** In a safe pod: the ship's voice drops away and nothing calls from down the corridor. */
+  /** In a sanctum: the drone drops away and nothing calls from down the hall. */
   safe: boolean;
 }
 
@@ -102,7 +116,7 @@ class Sound {
     if (!ctx || !this.master || !this.enabled || ctx.state !== 'running') return;
     const t = ctx.currentTime;
     switch (effect) {
-      case 'hatch':
+      case 'door':
         this.hiss(t, 0.45, 2400, 300, 0.16);
         this.thump(t + 0.32, 70, 0.3, 0.3);
         break;
@@ -119,7 +133,7 @@ class Sound {
         this.thump(t, 55, 0.3, 0.55);
         this.hiss(t, 0.18, 500, 120, 0.3);
         break;
-      case 'stim':
+      case 'potion':
         this.hiss(t, 0.25, 5000, 2500, 0.08);
         this.tone(t + 0.1, 220, 0.7, 0.06);
         break;
@@ -127,17 +141,31 @@ class Sound {
         this.tone(t, 440, 0.25, 0.07);
         this.tone(t + 0.09, 466.16, 0.4, 0.06);
         break;
-      case 'augment':
-        // A minor second, slowly opening. Meant to feel like an upgrade you are not sure you wanted.
+      case 'talent':
+        // A minor second, slowly opening. Power, with something off about it.
         this.tone(t, 196, 1.4, 0.08);
         this.tone(t + 0.15, 207.65, 1.4, 0.07);
         this.tone(t + 0.5, 392, 1.1, 0.04);
         break;
       case 'craft':
-        // A servo, then a part seating.
-        this.hiss(t, 0.3, 900, 2600, 0.1);
-        this.thump(t + 0.3, 140, 0.1, 0.25);
-        this.tone(t + 0.34, 660, 0.3, 0.05);
+        // Hammer on anvil: the blow, then the ring.
+        this.thump(t, 160, 0.09, 0.4);
+        this.hiss(t, 0.05, 4200, 2600, 0.25);
+        this.tone(t + 0.01, 1480, 0.9, 0.07);
+        this.tone(t + 0.01, 2210, 0.6, 0.03);
+        break;
+      case 'smite':
+        // Everything at once, and low.
+        this.thump(t, 70, 0.45, 0.7);
+        this.hiss(t, 0.22, 2600, 300, 0.35);
+        this.tone(t + 0.03, 196, 0.8, 0.09);
+        break;
+      case 'drop':
+        // The sound a player will learn to want: a bright rising chime, long in the tail.
+        this.tone(t, 880, 1.6, 0.09);
+        this.tone(t + 0.09, 1318.5, 1.6, 0.08);
+        this.tone(t + 0.18, 1760, 2.0, 0.07);
+        this.tone(t + 0.18, 2637, 1.4, 0.03);
         break;
       case 'whisper':
         this.breath(t);
@@ -195,7 +223,7 @@ class Sound {
       loop.gain.gain.setTargetAtTime(dead || safe ? gain * 0.25 : gain, t, 1.5);
       loop.source.playbackRate.setTargetAtTime(rate, t, 3);
     };
-    // The deeper you go, the lower the ship's voice drops and the more the rumble comes up under it.
+    // The deeper you go, the lower the drone drops and the more the rumble comes up under it.
     set('saturn', LOOPS.saturn.gain, LOOPS.saturn.rate - 0.22 * depth);
     set('wind', LOOPS.wind.gain * (1 - 0.5 * depth), LOOPS.wind.rate);
     set('deep', 0.1 + 0.5 * depth, LOOPS.deep.rate - 0.3 * depth);
@@ -217,7 +245,7 @@ class Sound {
     }, wait);
   }
 
-  /** A distant sound from somewhere else on the ship: quiet, slowed, off to one side. */
+  /** A distant sound from somewhere else in the dungeon: quiet, slowed, off to one side. */
   private sting(level: number): void {
     const ctx = this.ctx;
     if (!ctx || !this.master || ctx.state !== 'running') return;
@@ -246,7 +274,7 @@ class Sound {
 
   // ---------- Synthesised effects ----------
 
-  /** A low sine hit that drops in pitch: impacts, the heartbeat, a hatch seating. */
+  /** A low sine hit that drops in pitch: impacts, the heartbeat, a door closing. */
   private thump(at: number, hz: number, seconds: number, level: number): void {
     const ctx = this.ctx!;
     const osc = ctx.createOscillator();
@@ -261,7 +289,7 @@ class Sound {
     osc.stop(at + seconds + 0.05);
   }
 
-  /** Filtered noise sweeping from one frequency to another: pneumatics, blows, static. */
+  /** Filtered noise sweeping from one frequency to another: steel, blows, breath. */
   private hiss(at: number, seconds: number, fromHz: number, toHz: number, level: number): void {
     const ctx = this.ctx!;
     const source = ctx.createBufferSource();

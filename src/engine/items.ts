@@ -13,7 +13,7 @@ const AFFIX_VALUE: Record<StatKey, (level: number) => number> = {
   leech: (l) => Math.min(1 + 0.08 * l, 4),
 };
 
-const GADGET_STATS: readonly StatKey[] = ['spd', 'crit', 'critDmg', 'leech', 'maxHp', 'atk'];
+const TRINKET_STATS: readonly StatKey[] = ['spd', 'crit', 'critDmg', 'leech', 'maxHp', 'atk'];
 
 /** `luck` shifts weight toward the higher tiers: each tier gains (1 + luck)^tier. */
 export function rollRarity(rng: Rng, luck = 0): RarityDef {
@@ -44,7 +44,7 @@ export function makeItem(
     addMod(mods, 'maxHp', (12 + 6 * level) * roll());
     addMod(mods, 'def', (1 + 0.7 * level) * roll());
   } else {
-    const key = rng.pick(GADGET_STATS);
+    const key = rng.pick(TRINKET_STATS);
     addMod(mods, key, AFFIX_VALUE[key](level) * 1.6 * roll());
   }
 
@@ -88,8 +88,8 @@ export function itemScore(item: Item | null): number {
   return STAT_KEYS.reduce((sum, key) => sum + (item.mods[key] ?? 0) * SCORE_WEIGHT[key], 0);
 }
 
-/** Raises every stat on an item by one overclock step, in place. Always at least +1 per stat. */
-export function overclock(item: Item, gain: number): void {
+/** Raises every stat on an item by one temper step, in place. Always at least +1 per stat. */
+export function temper(item: Item, gain: number): void {
   for (const key of STAT_KEYS) {
     const value = item.mods[key];
     if (value) item.mods[key] = Math.max(value + 1, Math.round(value * gain));
@@ -105,7 +105,7 @@ export function nextRarity(rarity: Rarity): Rarity | null {
   return RARITIES[index + 1]?.id ?? null;
 }
 
-/** An item's name as shown to the player, with its overclock count. */
+/** An item's name as shown to the player, with its temper count. */
 export function itemName(item: Item): string {
   return item.plus ? `${item.name} +${item.plus}` : item.name;
 }

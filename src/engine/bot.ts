@@ -1,9 +1,9 @@
-import { BAG_SIZE, BOONS, CRAFT } from './data';
-import { overclockCost, playerStats, reduce, sacrificeCost } from './engine';
+import { BAG_SIZE, BOONS, CRAFT, WRATH } from './data';
+import { temperCost, playerStats, reduce, sacrificeCost } from './engine';
 import { itemScore } from './items';
 import type { Action, GameState, RoomKind } from './types';
 
-const BOON_PRIORITY = ['servo', 'frame', 'plating', 'siphon', 'reflex', 'optics', 'coil'];
+const BOON_PRIORITY = ['might', 'vitality', 'iron-skin', 'bloodthirst', 'haste', 'precision', 'savagery'];
 const HEALTHY_ORDER: RoomKind[] = ['treasure', 'fight', 'elite', 'merchant', 'shrine'];
 const HURT_ORDER: RoomKind[] = ['shrine', 'merchant', 'treasure', 'fight', 'elite'];
 
@@ -18,6 +18,7 @@ export function botAction(state: GameState): Action {
 
   if (phase.type === 'combat') {
     if (player.potions > 0 && player.hp < stats.maxHp * 0.35) return { type: 'drinkPotion' };
+    if (player.wrath >= WRATH.max) return { type: 'smite' };
     return { type: 'advance' };
   }
   if (phase.type === 'dead') throw new Error('The run is over');
@@ -63,12 +64,12 @@ export function botAction(state: GameState): Action {
       );
       return index >= 0 ? { type: 'buy', index } : { type: 'continue' };
     }
-    case 'pod': {
+    case 'sanctum': {
       if (!phase.rested && player.hp < stats.maxHp) return { type: 'rest' };
-      if (player.potions < 3 && player.parts >= CRAFT.stim) return { type: 'craft', recipe: 'stim' };
+      if (player.potions < 3 && player.shards >= CRAFT.potion) return { type: 'craft', recipe: 'potion' };
       const weapon = player.equipment.weapon;
-      if (weapon && (weapon.plus ?? 0) < CRAFT.overclockMax && player.parts >= overclockCost(weapon)) {
-        return { type: 'craft', recipe: 'overclock', slot: 'weapon' };
+      if (weapon && (weapon.plus ?? 0) < CRAFT.temperMax && player.shards >= temperCost(weapon)) {
+        return { type: 'craft', recipe: 'temper', slot: 'weapon' };
       }
       return { type: 'continue' };
     }

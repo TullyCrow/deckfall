@@ -1,13 +1,13 @@
 {
   "name": "Deckfall",
   "short_name": "Deckfall",
-  "description": "A quick sci-fi dungeon crawler. Board the derelict, pick a hatch, fight, salvage, go deeper.",
+  "description": "A gothic dungeon crawl for a work break. Pick a door, slay what is behind it, take the loot, go deeper.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0b0f14",
-  "theme_color": "#0b0f14",
+  "background_color": "#080504",
+  "theme_color": "#080504",
   "categories": ["games"],
   "icons": [
     { "src": "pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

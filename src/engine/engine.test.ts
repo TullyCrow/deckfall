@@ -13,8 +13,8 @@ function playSteps(state: GameState, steps: number): GameState {
 
 describe('rng', () => {
   it('gives the same sequence for the same seed', () => {
-    const a = createRng(hashSeed('derelict'));
-    const b = createRng(hashSeed('derelict'));
+    const a = createRng(hashSeed('cathedral'));
+    const b = createRng(hashSeed('cathedral'));
     expect(Array.from({ length: 20 }, () => a.next())).toEqual(Array.from({ length: 20 }, () => b.next()));
   });
 
@@ -139,93 +139,93 @@ describe('engine', () => {
   });
 });
 
-describe('safe pod', () => {
-  /** A fresh game dropped straight into a pod, with whatever the test needs in hand. */
-  function inPod(change: (state: GameState) => void): GameState {
-    const state = structuredClone(newGame('pod'));
-    state.phase = { type: 'pod', rested: false };
+describe('sanctum', () => {
+  /** A fresh game dropped straight into a sanctum, with whatever the test needs in hand. */
+  function inSanctum(change: (state: GameState) => void): GameState {
+    const state = structuredClone(newGame('sanctum'));
+    state.phase = { type: 'sanctum', rested: false };
     change(state);
     return state;
   }
   const weapon = (id: number, rarity: 'common' | 'uncommon' = 'common') =>
     makeItem(createRng(id), id, 3, 0, { slot: 'weapon', rarity });
 
-  it('is where the lift stops before every new deck', () => {
+  it('is passed on the stair before every new depth', () => {
     let state = newGame('pod-stop');
     while (state.floor === 1 && state.phase.type !== 'dead') state = reduce(state, botAction(state));
     if (state.phase.type === 'dead') return; // this seed's bot died on deck 1; nothing to check
-    // The boon pick for any level gained comes first, then the pod, then the new deck's hatches.
+    // The boon pick for any level gained comes first, then the sanctum, then the new depth's doors.
     while (state.phase.type === 'boon' || state.phase.type === 'loot') state = reduce(state, botAction(state));
-    expect(state.phase.type).toBe('pod');
+    expect(state.phase.type).toBe('sanctum');
     state = reduce(state, { type: 'continue' });
     expect(state.phase.type).toBe('doors');
   });
 
   it('lets you rest once', () => {
-    let state = inPod((s) => (s.player.hp = 10));
+    let state = inSanctum((s) => (s.player.hp = 10));
     state = reduce(state, { type: 'rest' });
     expect(state.player.hp).toBeGreaterThan(10);
     expect(reduce(state, { type: 'rest' })).toBe(state);
   });
 
-  it('gives parts for scrap and turns them into stims', () => {
-    let state = inPod((s) => s.player.bag.push(weapon(1), weapon(2), weapon(3), weapon(4), weapon(5)));
-    expect(reduce(state, { type: 'craft', recipe: 'stim' })).toBe(state);
+  it('gives shards for salvage and turns them into potions', () => {
+    let state = inSanctum((s) => s.player.bag.push(weapon(1), weapon(2), weapon(3), weapon(4), weapon(5)));
+    expect(reduce(state, { type: 'craft', recipe: 'potion' })).toBe(state);
     for (const item of state.player.bag) state = reduce(state, { type: 'sell', itemId: item.id });
-    expect(state.player.parts).toBe(5);
-    state = { ...state, player: { ...state.player, parts: CRAFT.stim } };
-    const stims = state.player.potions;
-    state = reduce(state, { type: 'craft', recipe: 'stim' });
-    expect(state.player.potions).toBe(stims + 1);
-    expect(state.player.parts).toBe(0);
+    expect(state.player.shards).toBe(5);
+    state = { ...state, player: { ...state.player, shards: CRAFT.potion } };
+    const potions = state.player.potions;
+    state = reduce(state, { type: 'craft', recipe: 'potion' });
+    expect(state.player.potions).toBe(potions + 1);
+    expect(state.player.shards).toBe(0);
   });
 
-  it('overclocks worn gear, for more each time, up to a limit', () => {
-    let state = inPod((s) => {
+  it('tempers worn gear, for more each time, up to a limit', () => {
+    let state = inSanctum((s) => {
       s.player.equipment.weapon = weapon(1);
-      s.player.parts = 999;
+      s.player.shards = 999;
     });
     const before = playerStats(state.player).atk;
     let spent = 0;
-    for (let i = 0; i < CRAFT.overclockMax; i++) {
-      const parts = state.player.parts;
-      state = reduce(state, { type: 'craft', recipe: 'overclock', slot: 'weapon' });
-      const cost = parts - state.player.parts;
+    for (let i = 0; i < CRAFT.temperMax; i++) {
+      const shards = state.player.shards;
+      state = reduce(state, { type: 'craft', recipe: 'temper', slot: 'weapon' });
+      const cost = shards - state.player.shards;
       expect(cost).toBeGreaterThan(spent);
       spent = cost;
     }
     expect(playerStats(state.player).atk).toBeGreaterThan(before);
-    expect(state.player.equipment.weapon?.plus).toBe(CRAFT.overclockMax);
-    expect(reduce(state, { type: 'craft', recipe: 'overclock', slot: 'weapon' })).toBe(state);
+    expect(state.player.equipment.weapon?.plus).toBe(CRAFT.temperMax);
+    expect(reduce(state, { type: 'craft', recipe: 'temper', slot: 'weapon' })).toBe(state);
   });
 
-  it('re-rolls worn gear but keeps its tier, slot and overclocks', () => {
-    let state = inPod((s) => {
+  it('re-rolls worn gear but keeps its tier, slot and tempers', () => {
+    let state = inSanctum((s) => {
       s.player.equipment.weapon = weapon(9001, 'uncommon');
-      s.player.parts = 999;
+      s.player.shards = 999;
     });
-    state = reduce(state, { type: 'craft', recipe: 'overclock', slot: 'weapon' });
+    state = reduce(state, { type: 'craft', recipe: 'temper', slot: 'weapon' });
     const old = state.player.equipment.weapon!;
-    state = reduce(state, { type: 'craft', recipe: 'recalibrate', slot: 'weapon' });
+    state = reduce(state, { type: 'craft', recipe: 'reforge', slot: 'weapon' });
     const fresh = state.player.equipment.weapon!;
     expect(fresh.id).not.toBe(old.id);
     expect([fresh.slot, fresh.rarity, fresh.plus]).toEqual(['weapon', 'uncommon', 1]);
   });
 
-  it('fuses three of a tier into one of the next', () => {
-    let state = inPod((s) => {
+  it('transmutes three of a tier into one of the next', () => {
+    let state = inSanctum((s) => {
       s.player.bag.push(weapon(1), weapon(2), weapon(3), weapon(4, 'uncommon'));
-      s.player.parts = CRAFT.fuse;
+      s.player.shards = CRAFT.transmute;
     });
-    state = reduce(state, { type: 'craft', recipe: 'fuse', rarity: 'common' });
+    state = reduce(state, { type: 'craft', recipe: 'transmute', rarity: 'common' });
     expect(state.player.bag.map((item) => item.rarity).sort()).toEqual(['uncommon', 'uncommon']);
-    expect(state.player.parts).toBe(0);
-    expect(reduce(state, { type: 'craft', recipe: 'fuse', rarity: 'uncommon' })).toBe(state);
+    expect(state.player.shards).toBe(0);
+    expect(reduce(state, { type: 'craft', recipe: 'transmute', rarity: 'uncommon' })).toBe(state);
   });
 
-  it('has no workbench anywhere else', () => {
+  it('has no anvil anywhere else', () => {
     const state = newGame('no-bench');
-    expect(reduce(state, { type: 'craft', recipe: 'stim' })).toBe(state);
+    expect(reduce(state, { type: 'craft', recipe: 'potion' })).toBe(state);
     expect(reduce(state, { type: 'rest' })).toBe(state);
   });
 });
@@ -289,4 +289,28 @@ describe('balance', () => {
     expect(summary.max).toBeLessThan(100);
     expect(summary.p10).toBeGreaterThanOrEqual(2);
   }, 30_000);
+});
+
+describe('wrath', () => {
+  it('builds as blows are traded', () => {
+    let state = reduce(newGame(FIRST_RUN_SEED), { type: 'chooseDoor', index: 0 });
+    expect(state.player.wrath).toBe(0);
+    for (let i = 0; i < 4; i++) state = reduce(state, { type: 'advance' });
+    expect(state.player.wrath).toBeGreaterThan(0);
+  });
+
+  it('is spent, all of it, on a smite that hits far harder than a blow', () => {
+    const fresh = newGame(FIRST_RUN_SEED);
+    expect(reduce(fresh, { type: 'smite' })).toBe(fresh); // not in a fight
+    let state = reduce(fresh, { type: 'chooseDoor', index: 0 });
+    expect(reduce(state, { type: 'smite' })).toBe(state); // not charged
+    state = { ...state, player: { ...state.player, wrath: 100 } };
+    if (state.phase.type !== 'combat') throw new Error('expected a fight');
+    const before = state.phase.enemy.hp;
+    state = reduce(state, { type: 'smite' });
+    const after = state.phase.type === 'combat' ? state.phase.enemy.hp : 0;
+    expect(state.player.wrath).toBe(0);
+    // Base attack is 8, so a plain blow is under 10; a smite must clear that comfortably.
+    expect(before - after).toBeGreaterThan(14);
+  });
 });

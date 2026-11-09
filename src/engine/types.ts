@@ -4,13 +4,13 @@ export type Stats = Record<StatKey, number>;
 export type Mods = Partial<Stats>;
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
-export const SLOTS = ['weapon', 'armour', 'gadget'] as const;
+export const SLOTS = ['weapon', 'armour', 'trinket'] as const;
 export type Slot = (typeof SLOTS)[number];
 
 export interface Item {
   id: number;
   name: string;
-  /** File name (without extension) of the picture in public/icons. */
+  /** File name (without extension) of the sprite in public/sprites. */
   icon: string;
   slot: Slot;
   rarity: Rarity;
@@ -18,7 +18,7 @@ export interface Item {
   mods: Mods;
   /** Gold received when sold. */
   value: number;
-  /** Times this item has been overclocked at a workbench. Shown as "+N" after its name. */
+  /** Times this item has been tempered at an anvil. Shown as "+N" after its name. */
   plus?: number;
 }
 
@@ -66,7 +66,7 @@ export type Phase =
   | { type: 'boon'; choices: string[] }
   | { type: 'shrine' }
   | { type: 'merchant'; stock: ShopEntry[]; potionPrice: number }
-  | { type: 'pod'; rested: boolean }
+  | { type: 'sanctum'; rested: boolean }
   | { type: 'dead'; killedBy: string };
 
 export interface Player {
@@ -79,15 +79,17 @@ export interface Player {
   bag: Item[];
   gold: number;
   potions: number;
-  /** Crafting material, from scrapping gear. Spent at a safe pod's workbench. */
-  parts: number;
+  /** Crafting material, from salvaging gear and from kills. Spent at a sanctum's anvil. */
+  shards: number;
+  /** Builds as blows are traded; spent all at once on a Smite. 0 to WRATH.max. */
+  wrath: number;
 }
 
-/** `eerie` lines are atmosphere only: things the salvager notices, or thinks they notice. */
+/** `eerie` lines are atmosphere only: things the hero notices, or thinks they notice. */
 export type LogTone = 'info' | 'good' | 'bad' | 'loot' | 'hit' | 'hurt' | 'eerie';
 
 /** A hint to the interface about what a line should sound like, where its tone alone does not say. */
-export type Cue = 'hatch' | 'crit' | 'stim' | 'augment' | 'death' | 'craft';
+export type Cue = 'door' | 'crit' | 'potion' | 'talent' | 'death' | 'craft' | 'smite' | 'drop';
 
 export interface LogEntry {
   id: number;
@@ -115,8 +117,8 @@ export interface GameState {
   room: number;
   /** Indexes into WHISPERS already used this run, so none repeats. */
   heard: number[];
-  /** The lift has moved and the safe pod between decks has not been visited yet. */
-  podPending: boolean;
+  /** The hero has gone down a level and has not yet visited the sanctum on the way. */
+  sanctumPending: boolean;
   /** Boon picks the player is still owed. */
   pendingBoons: number;
   player: Player;
@@ -132,6 +134,7 @@ export type Action =
   | { type: 'advance' }
   | { type: 'drinkPotion' }
   | { type: 'flee' }
+  | { type: 'smite' }
   | { type: 'takeLoot'; index: number }
   | { type: 'equipLoot'; index: number }
   | { type: 'continue' }
@@ -142,6 +145,6 @@ export type Action =
   | { type: 'buy'; index: number }
   | { type: 'buyPotion' }
   | { type: 'rest' }
-  | { type: 'craft'; recipe: 'stim' }
-  | { type: 'craft'; recipe: 'overclock' | 'recalibrate'; slot: Slot }
-  | { type: 'craft'; recipe: 'fuse'; rarity: Rarity };
+  | { type: 'craft'; recipe: 'potion' }
+  | { type: 'craft'; recipe: 'temper' | 'reforge'; slot: Slot }
+  | { type: 'craft'; recipe: 'transmute'; rarity: Rarity };

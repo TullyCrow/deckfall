@@ -1,12 +1,12 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './ui/App';
-// IBM Plex, SIL Open Font Licence. Bundled so the game looks the same offline.
-import '@fontsource/ibm-plex-mono/latin-400.css';
-import '@fontsource/ibm-plex-mono/latin-400-italic.css';
-import '@fontsource/ibm-plex-mono/latin-600.css';
-import '@fontsource/ibm-plex-sans/latin-400.css';
-import '@fontsource/ibm-plex-sans/latin-600.css';
+// Cinzel and EB Garamond, SIL Open Font Licence. Bundled so the game looks the same offline.
+import '@fontsource/cinzel/latin-400.css';
+import '@fontsource/cinzel/latin-700.css';
+import '@fontsource/eb-garamond/latin-400.css';
+import '@fontsource/eb-garamond/latin-400-italic.css';
+import '@fontsource/eb-garamond/latin-600.css';
 import './ui/styles.css';
 
 createRoot(document.getElementById('root')!).render(

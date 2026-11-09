@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { RARITIES, STAT_KEYS, STAT_LABEL, itemName, type Item, type Mods, type Slot, type StatKey } from '../engine';
 
-export const SLOT_LABEL: Record<Slot, string> = { weapon: 'Weapon', armour: 'Armour', gadget: 'Gadget' };
+export const SLOT_LABEL: Record<Slot, string> = { weapon: 'Weapon', armour: 'Armour', trinket: 'Trinket' };
 
 export function formatMod(key: StatKey, value: number): string {
   const label = STAT_LABEL[key];
@@ -19,7 +19,7 @@ function compare(item: Item, worn: Item | null): { text: string; better: boolean
     .map(({ key, delta }) => ({ text: formatMod(key, delta), better: delta > 0 }));
 }
 
-/** How much `value` changed since the previous render. Used to flash a bar when it drops. */
+/** How much `value` changed since the previous render. Used for damage numbers and flinches. */
 export function useDelta(value: number): number {
   const previous = useRef(value);
   const delta = value - previous.current;
@@ -29,9 +29,16 @@ export function useDelta(value: number): number {
   return delta;
 }
 
+export const spriteUrl = (name: string) => `./sprites/${name}.png`;
+
+/** A 32-pixel sprite from public/sprites, drawn with hard pixel edges at whatever size CSS gives it. */
+export function Sprite({ name, className = '' }: { name: string; className?: string }) {
+  return <img className={`px ${className}`} src={spriteUrl(name)} alt="" draggable={false} />;
+}
+
 interface IconProps {
   name: string;
-  size?: 'md' | 'lg' | 'xl' | 'hero' | 'sprite';
+  size?: 'md' | 'lg';
   className?: string;
 }
 
@@ -47,11 +54,35 @@ export function Icon({ name, size = 'md', className = '' }: IconProps) {
   );
 }
 
+interface OrbProps {
+  kind: 'life' | 'wrath';
+  label: string;
+  value: number;
+  max: number;
+  /** Draws attention: low life, or wrath ready to spend. */
+  urgent?: boolean;
+}
+
+/** A glass globe that fills from the bottom: red for life on the left, blue for wrath on the right. */
+export function Orb({ kind, label, value, max, urgent = false }: OrbProps) {
+  const percent = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  return (
+    <div
+      className={`orb orb-${kind} ${urgent ? 'orb-urgent' : ''}`}
+      role="img"
+      aria-label={`${label}: ${Math.round(value)} of ${Math.round(max)}`}
+    >
+      <div className="orb-fill" style={{ height: `${percent}%` }} />
+      <span className="orb-num">{Math.round(value)}</span>
+    </div>
+  );
+}
+
 interface MeterProps {
   label: string;
   value: number;
   max: number;
-  tone: 'hp' | 'xp' | 'foe' | 'turn';
+  tone: 'foe' | 'turn' | 'xp';
   showNumbers?: boolean;
 }
 
@@ -59,14 +90,16 @@ export function Meter({ label, value, max, tone, showNumbers = true }: MeterProp
   const percent = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
   return (
     <div className={`meter meter-${tone}`}>
-      <div className="meter-head">
-        <span>{label}</span>
-        {showNumbers && (
-          <span className="num">
-            {Math.round(value)} / {Math.round(max)}
-          </span>
-        )}
-      </div>
+      {tone !== 'xp' && (
+        <div className="meter-head">
+          <span>{label}</span>
+          {showNumbers && (
+            <span className="num">
+              {Math.round(value)} / {Math.round(max)}
+            </span>
+          )}
+        </div>
+      )}
       <div
         className="meter-track"
         role="progressbar"
@@ -95,7 +128,9 @@ export function ItemCard({ item, worn, inline = false, children }: ItemCardProps
   const changes = worn !== undefined ? compare(item, worn) : null;
   return (
     <div className={`item rarity-${item.rarity}`}>
-      <Icon name={item.icon} size="lg" />
+      <span className="slot">
+        <Sprite name={item.icon} />
+      </span>
       <div className="item-body">
         <div className="item-name">{itemName(item)}</div>
         <div className="item-meta">

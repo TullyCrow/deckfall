@@ -2,24 +2,26 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   BAG_SIZE,
   FIRST_RUN_SEED,
-  PARTS_BY_RARITY,
   LOW_HP,
   ROOMS_PER_FLOOR,
+  SHARDS_BY_RARITY,
   SLOTS,
+  WRATH,
   isBossFloor,
   itemScore,
   newGame,
   playerStats,
   reduce,
+  regionOf,
   xpToNext,
   type Action,
   type GameState,
   type LogEntry,
 } from '../engine';
 import { sound, type Effect } from './audio';
-import { Feed } from './Feed';
-import { Icon, ItemCard, Meter, Sheet, SLOT_LABEL, useDelta } from './parts';
+import { Icon, ItemCard, Meter, Orb, Sheet, SLOT_LABEL, Sprite, useDelta } from './parts';
 import { buzz, useInstall } from './pwa';
+import { Scene } from './Scene';
 import { Stage } from './Stage';
 import {
   dailySeed,
@@ -39,7 +41,7 @@ import {
 import { TIPS, tipFor, type TipId } from './tips';
 
 const STEP_MS = { 1: 520, 2: 190 } as const;
-const LOG_LINES = 5;
+const LOG_LINES = 4;
 
 function effectFor(entry: LogEntry): Effect | null {
   if (entry.cue) return entry.cue;
@@ -70,7 +72,7 @@ export function App() {
     (seed: string) => {
       const chosen = seed.trim() || randomSeed();
       setSheet(null);
-      // Coming back to a ship you died on gets a different welcome.
+      // Coming back to a dungeon you died in gets a different welcome.
       setGame(newGame(chosen, records.lastRun.startsWith(`${chosen}:`)));
       sound.start();
     },
@@ -107,7 +109,7 @@ export function App() {
     }
   }, [game]);
 
-  // Combat plays itself one action at a time; the player can step in with a stim or run.
+  // Combat plays itself one blow at a time; the player steps in with a potion, a smite, or their heels.
   const phaseType = game?.phase.type;
   useEffect(() => {
     if (phaseType !== 'combat') return;
@@ -140,18 +142,20 @@ export function App() {
     if (previous && previous !== tip) markSeen(previous);
   }, [tip, markSeen]);
 
-  // Feel a hit, and feel the last one more.
+  // Feel a blow, and feel the last one more.
   const hp = game?.player.hp ?? 0;
   const hpDelta = useDelta(hp);
   useEffect(() => {
     if (hpDelta < 0) buzz(hp === 0 ? [40, 60, 120] : 12);
   }, [hp, hpDelta]);
 
-  // Keyboard: 1 to 3 pick a choice, S uses a stim.
+  // Keyboard: 1 to 3 pick a choice, Q drinks a potion, W smites.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (event.key.toLowerCase() === 's') return dispatch({ type: 'drinkPotion' });
+      const key = event.key.toLowerCase();
+      if (key === 'q') return dispatch({ type: 'drinkPotion' });
+      if (key === 'w') return dispatch({ type: 'smite' });
       const index = Number(event.key) - 1;
       if (!Number.isInteger(index) || index < 0 || index > 2) return;
       setGame((current) => {
@@ -173,12 +177,12 @@ export function App() {
     });
   }, []);
 
-  // The ship's voice drops and the heartbeat starts as things get worse.
-  const deck = game?.floor ?? 1;
+  // The drone drops and the heartbeat starts as things get worse; a sanctum quiets everything.
+  const depth = game?.floor ?? 1;
   const dead = game?.phase.type === 'dead';
+  const safe = game?.phase.type === 'sanctum';
   const hurtBadly = game ? !dead && game.player.hp < playerStats(game.player).maxHp * LOW_HP : false;
-  const safe = game?.phase.type === 'pod';
-  useEffect(() => sound.setMood({ deck, low: hurtBadly, dead, safe }), [deck, hurtBadly, dead, safe]);
+  useEffect(() => sound.setMood({ deck: depth, low: hurtBadly, dead, safe }), [depth, hurtBadly, dead, safe]);
 
   const toggleSound = () => {
     // Applied here, inside the tap, because browsers only start audio from one.
@@ -192,24 +196,24 @@ export function App() {
   const { player, phase } = game;
   const stats = playerStats(player);
   const inFight = phase.type === 'combat';
-  const over = phase.type === 'dead';
-  const low = !over && player.hp < stats.maxHp * LOW_HP;
-  const canStim = !over && player.potions > 0 && player.hp < stats.maxHp;
+  const canDrink = !dead && player.potions > 0 && player.hp < stats.maxHp;
+  const canSmite = inFight && player.wrath >= WRATH.max;
   const upgrades = player.bag.filter((item) => itemScore(item) > itemScore(player.equipment[item.slot])).length;
+  const region = regionOf(game.floor);
 
-  // Progress through the deck: three rooms, then the lift or the guardian.
+  // Progress through the depth: three rooms, then the stairs or the lord.
   const position = phase.type === 'doors' ? game.room : game.room - 1;
   const boss = isBossFloor(game.floor);
   const atEnd = position >= ROOMS_PER_FLOOR;
-  const endLabel = boss ? 'Guardian' : 'Lift reached';
+  const endLabel = boss ? 'The lord of this depth' : 'Stairs reached';
   const progressLabel = atEnd ? endLabel : `Room ${position + 1} of ${ROOMS_PER_FLOOR}`;
 
   return (
-    <div className={`app play ${low ? 'is-low' : ''} ${game.floor >= 5 ? 'is-deep' : ''} ${safe ? 'is-safe' : ''}`}>
+    <div className={`app play ${hurtBadly ? 'is-low' : ''} ${hpDelta < 0 ? 'is-struck' : ''}`}>
       <header className="bar">
-        <div className="deck">
-          <span className="deck-label">Deck</span>
-          <span className="deck-num num">{game.floor}</span>
+        <div className="where">
+          <span className="where-name">{region.name}</span>
+          <span className="where-depth num">{game.floor}</span>
           <span className="pips" role="img" aria-label={progressLabel}>
             {Array.from({ length: ROOMS_PER_FLOOR }, (_, index) => (
               <i key={index} className={`pip ${index < position ? 'pip-done' : ''} ${index === position ? 'pip-now' : ''}`} />
@@ -218,28 +222,14 @@ export function App() {
           </span>
         </div>
         <span className="purse num">
-          <span className="parts">{player.parts} parts</span>
-          <span className="credits">{player.gold} cr</span>
+          <span className="shards">{player.shards} shards</span>
+          <span className="gold">
+            <Sprite name="gold" /> {player.gold}
+          </span>
         </span>
       </header>
 
-      <section
-        key={hpDelta < 0 ? `hurt-${player.hp}` : 'steady'}
-        className={`vitals ${low ? 'vitals-low' : ''} ${hpDelta < 0 ? 'vitals-hurt' : ''}`}
-        aria-label="Your status"
-      >
-        <Meter label={`Level ${player.level}`} value={player.hp} max={stats.maxHp} tone="hp" />
-        <Meter label="XP" value={player.xp} max={xpToNext(player.level)} tone="xp" />
-        <ul className="chips">
-          <li>ATK {stats.atk}</li>
-          <li>DEF {stats.def}</li>
-          <li>SPD {stats.spd}</li>
-          <li>Crit {stats.crit}%</li>
-          {stats.leech > 0 && <li>Leech {stats.leech}%</li>}
-        </ul>
-      </section>
-
-      <Feed game={game} />
+      <Scene game={game} />
 
       <section className="log" role="log" aria-live="polite" aria-label="Event log">
         {game.log.slice(-LOG_LINES).map((entry) => (
@@ -272,33 +262,67 @@ export function App() {
         />
       </section>
 
-      <nav className="dock" aria-label="Pack, stims and menu">
-        <button className="dock-btn" onClick={() => setSheet('pack')}>
-          <Icon name="cargo-crate" />
-          <span>
-            Pack{' '}
-            <span className="num">
-              {player.bag.length}/{BAG_SIZE}
-            </span>
-          </span>
-          {upgrades > 0 && <span className="badge">{upgrades} better</span>}
-        </button>
-        <button
-          className={`dock-btn ${low && canStim ? 'dock-urgent' : ''}`}
-          disabled={!canStim}
-          onClick={() => dispatch({ type: 'drinkPotion' })}
-        >
-          <Icon name="syringe" />
-          <span>
-            Stim <span className="num">×{player.potions}</span>
-          </span>
-        </button>
-        <button className="dock-btn dock-menu" onClick={() => setSheet('menu')}>
-          Menu
-        </button>
-      </nav>
+      {/* The belt: life on the left, wrath on the right, everything you can do in between. */}
+      <footer className="belt">
+        <Orb kind="life" label="Life" value={player.hp} max={stats.maxHp} urgent={hurtBadly} />
+        <div className="belt-mid">
+          <div className="belt-xp">
+            <span className="num">Level {player.level}</span>
+            <Meter label="Experience" value={player.xp} max={xpToNext(player.level)} tone="xp" />
+          </div>
+          <nav className="belt-slots" aria-label="Potion, smite, pack and menu">
+            <button
+              className={`slot-btn ${hurtBadly && canDrink ? 'slot-urgent' : ''}`}
+              disabled={!canDrink}
+              onClick={() => dispatch({ type: 'drinkPotion' })}
+              aria-label={`Drink a potion. ${player.potions} left.`}
+            >
+              <Sprite name="potion" />
+              <span className="slot-count num">{player.potions}</span>
+            </button>
+            <button
+              className={`slot-btn ${canSmite ? 'slot-ready' : ''}`}
+              disabled={!canSmite}
+              onClick={() => dispatch({ type: 'smite' })}
+              aria-label={canSmite ? 'Smite: spend all your wrath on one great blow' : 'Smite. Not ready.'}
+            >
+              <Icon name="sword-clash" size="lg" />
+              <span className="slot-label">Smite</span>
+            </button>
+            <button className="slot-btn" onClick={() => setSheet('pack')} aria-label={`Pack. ${player.bag.length} of ${BAG_SIZE}.`}>
+              <Icon name="knapsack" size="lg" />
+              <span className="slot-count num">{player.bag.length}</span>
+              {upgrades > 0 && <span className="badge">{upgrades}</span>}
+            </button>
+            <button className="slot-btn slot-menu" onClick={() => setSheet('menu')}>
+              Menu
+            </button>
+          </nav>
+        </div>
+        <Orb kind="wrath" label="Wrath" value={player.wrath} max={WRATH.max} urgent={canSmite} />
+      </footer>
 
-      <Sheet open={sheet === 'pack'} title="Gear and pack" onClose={() => setSheet(null)}>
+      <Sheet open={sheet === 'pack'} title="Character and pack" onClose={() => setSheet(null)}>
+        <ul className="sheet-stats">
+          <li>
+            <span>Attack</span> <b>{stats.atk}</b>
+          </li>
+          <li>
+            <span>Defence</span> <b>{stats.def}</b>
+          </li>
+          <li>
+            <span>Speed</span> <b>{stats.spd}</b>
+          </li>
+          <li>
+            <span>Critical</span> <b>{stats.crit}%</b>
+          </li>
+          <li>
+            <span>Crit damage</span> <b>{stats.critDmg}%</b>
+          </li>
+          <li>
+            <span>Life steal</span> <b>{stats.leech}%</b>
+          </li>
+        </ul>
         <h3>Worn</h3>
         <div className="stack">
           {SLOTS.map((slot) => {
@@ -315,7 +339,7 @@ export function App() {
         <h3>
           Pack ({player.bag.length}/{BAG_SIZE})
         </h3>
-        {player.bag.length === 0 && <p className="note">Empty. Salvage you take goes here until you equip or scrap it.</p>}
+        {player.bag.length === 0 && <p className="note">Empty. Loot you take goes here until you equip or salvage it.</p>}
         {inFight && player.bag.length > 0 && <p className="note warn">You cannot change gear mid-fight.</p>}
         <div className="stack">
           {player.bag.map((item) => {
@@ -324,17 +348,17 @@ export function App() {
               <ItemCard key={item.id} item={item} worn={player.equipment[item.slot]}>
                 <button
                   className={`btn ${better ? 'btn-primary' : ''}`}
-                  disabled={inFight || over}
+                  disabled={inFight || dead}
                   onClick={() => dispatch({ type: 'equip', itemId: item.id })}
                 >
                   Equip
                 </button>
                 <button
                   className="btn btn-quiet"
-                  disabled={inFight || over}
+                  disabled={inFight || dead}
                   onClick={() => dispatch({ type: 'sell', itemId: item.id })}
                 >
-                  Scrap · {item.value} cr + {PARTS_BY_RARITY[item.rarity]}p
+                  Salvage · {item.value}g + {SHARDS_BY_RARITY[item.rarity]}
                 </button>
               </ItemCard>
             );
@@ -344,20 +368,21 @@ export function App() {
 
       <Sheet open={sheet === 'menu'} title="How to play" onClose={() => setSheet(null)}>
         <ol className="howto">
-          <li>Pick a hatch. Its hint tells you what is behind it.</li>
-          <li>Fights run on their own. Use a stim when your health is low, or flee.</li>
-          <li>Equip better salvage and scrap the rest for credits and parts.</li>
-          <li>The lift stops at a safe pod between decks: rest, and craft at the workbench.</li>
-          <li>Each level gives you an augment that lasts the whole run.</li>
-          <li>Three rooms, then the lift down. Every fifth deck has a guardian.</li>
-          <li>Death is final. See how deep you can get.</li>
+          <li>Pick a door. Its hint tells you what is behind it.</li>
+          <li>Fights run on their own. Drink a potion when the red orb runs low, or flee.</li>
+          <li>When the blue orb is full, Smite: one great blow.</li>
+          <li>Equip better loot and salvage the rest for gold and shards.</li>
+          <li>Each level you gain teaches you a talent that lasts the whole run.</li>
+          <li>The stair passes a sanctum before every new depth: rest, and work at the anvil.</li>
+          <li>Three rooms, then the stairs. Every fifth depth has a lord.</li>
+          <li>Death is final. The game saves every step, so you can close it mid-fight and come back.</li>
         </ol>
         <p className="note">
-          Ship seed <span className="num">{game.seed}</span> · best deck {records.bestDeck} · {records.runs} run
+          Dungeon seed <span className="num">{game.seed}</span> · deepest {records.bestDeck} · {records.runs} run
           {records.runs === 1 ? '' : 's'}
         </p>
         <p className="note">
-          Sound, type, texture and icon <a href="./CREDITS.md">credits</a>.
+          Art, sound and type <a href="./CREDITS.md">credits</a>.
         </p>
         <div className="actions actions-2">
           <button className="btn" onClick={toggleSound} aria-pressed={soundOn}>
@@ -366,13 +391,13 @@ export function App() {
           <button
             className="btn"
             onClick={() => {
-              if (over || window.confirm('Abandon this run? Your progress on it will be lost.')) {
+              if (dead || window.confirm('Abandon this run? Your progress on it will be lost.')) {
                 setSheet(null);
                 setGame(null);
               }
             }}
           >
-            {over ? 'Back to title' : 'Abandon run'}
+            {dead ? 'Back to title' : 'Abandon run'}
           </button>
         </div>
       </Sheet>
@@ -397,49 +422,53 @@ function Title({ records, soundOn, onToggleSound, onStart }: TitleProps) {
   };
   return (
     <div className="app title">
-      <header className="hero">
+      {/* The cathedral door, drawn from the same tiles as the dungeon below it. */}
+      <div className="title-art region-cathedral" aria-hidden="true">
+        <div className="scene-floor px" style={{ backgroundImage: 'url("./sprites/floor_cathedral.png")' }} />
+        <div className="scene-wall px" style={{ backgroundImage: 'url("./sprites/wall_cathedral.png")' }} />
+        <div className="scene-doors">
+          <Sprite name="statue_angel" />
+          <Sprite name="gate" />
+          <Sprite name="statue_evil" />
+        </div>
+        <div className="actor hero">
+          <Sprite name="hero" />
+        </div>
+        <div className="scene-dark" />
+      </div>
+
+      <header className="hero-text">
         <h1>Deckfall</h1>
         <p className="tagline">
           {firstTime
-            ? 'The ship went quiet nine years ago. Last week its beacon started again. You were closest.'
-            : 'It let you leave. You came back anyway.'}
+            ? 'Something has woken beneath the cathedral. Go down and kill it.'
+            : 'The dead do not rest here. Neither, it seems, do you.'}
         </p>
       </header>
 
       <div className="title-actions">
         <button className="btn btn-primary btn-big" onClick={() => onStart(firstTime ? FIRST_RUN_SEED : randomSeed())}>
-          Board the ship
+          Enter the cathedral
         </button>
         {!firstTime && (
           <button className="btn" onClick={() => onStart(dailySeed())}>
-            Today's ship
+            Today's dungeon
           </button>
         )}
       </div>
 
       <button className="sound-toggle" onClick={onToggleSound} aria-pressed={soundOn}>
         <Icon name={soundOn ? 'static-waves' : 'silence'} />
-        <span>{soundOn ? 'Sound on. Best with headphones.' : 'Sound off'}</span>
+        <span>{soundOn ? 'Sound on. Best with headphones.' : 'Sound is off. Tap to turn it on.'}</span>
       </button>
 
-      <ol className="steps">
-        <li>
-          <Icon name="secret-door" size="lg" />
-          <span>Pick a hatch</span>
-        </li>
-        <li>
-          <Icon name="claw-slashes" size="lg" />
-          <span>Fight and salvage</span>
-        </li>
-        <li>
-          <Icon name="elevator" size="lg" />
-          <span>Ride the lift deeper</span>
-        </li>
-      </ol>
+      <p className="note centre">
+        A run fits in a coffee break. It saves every step, so you can close it mid-fight and pick it up later.
+      </p>
 
       {!firstTime && (
         <p className="note centre">
-          Best deck {records.bestDeck} · {records.runs} run{records.runs === 1 ? '' : 's'}
+          Deepest: depth {records.bestDeck} · {records.runs} run{records.runs === 1 ? '' : 's'}
         </p>
       )}
 
@@ -454,9 +483,9 @@ function Title({ records, soundOn, onToggleSound, onStart }: TitleProps) {
 
       {!firstTime && (
         <details className="seed">
-          <summary>Play a specific ship</summary>
+          <summary>Play a specific dungeon</summary>
           <form onSubmit={submit}>
-            <label htmlFor="seed">Ship seed</label>
+            <label htmlFor="seed">Dungeon seed</label>
             <div className="seed-row">
               <input
                 id="seed"
@@ -469,18 +498,17 @@ function Title({ records, soundOn, onToggleSound, onStart }: TitleProps) {
                 spellCheck={false}
               />
               <button type="submit" className="btn">
-                Board
+                Enter
               </button>
             </div>
-            <p className="note">The same seed always builds the same ship, so you can race a friend.</p>
+            <p className="note">The same seed always builds the same dungeon, so you can race a friend.</p>
           </form>
         </details>
       )}
 
       <p className="credit">
-        Free software under GPL-3.0. Inspired by Dungeon Crawler on Demand by Red Pangilinan. Ambience from NASA
-        spacecraft recordings. Icons from <a href="https://game-icons.net">game-icons.net</a>, CC BY 3.0. Full{' '}
-        <a href="./CREDITS.md">credits</a>.
+        Free software under GPL-3.0. Pixel art from Dungeon Crawl Stone Soup (CC0). Inspired by Dungeon Crawler on
+        Demand by Red Pangilinan. Full <a href="./CREDITS.md">credits</a>.
       </p>
     </div>
   );

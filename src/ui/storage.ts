@@ -69,8 +69,9 @@ export function saveSpeed(speed: 1 | 2): void {
   write(SPEED_KEY, speed);
 }
 
+/** Off until the player turns it on: this is a game for a work break, and it should not announce itself. */
 export function loadSound(): boolean {
-  return read<boolean>(SOUND_KEY) !== false;
+  return read<boolean>(SOUND_KEY) === true;
 }
 
 export function saveSound(on: boolean): void {
