@@ -28,7 +28,7 @@ const STINGS = [
   'sting-signal-3.mp3',
 ] as const;
 
-export type Effect = 'hatch' | 'hit' | 'crit' | 'hurt' | 'pickup' | 'augment' | 'whisper' | 'death' | 'stim';
+export type Effect = 'hatch' | 'hit' | 'crit' | 'hurt' | 'pickup' | 'augment' | 'whisper' | 'death' | 'stim' | 'craft';
 
 export interface Mood {
   /** Current deck. Deeper is louder, lower and busier. */
@@ -36,6 +36,8 @@ export interface Mood {
   /** Badly hurt: the heartbeat starts. */
   low: boolean;
   dead: boolean;
+  /** In a safe pod: the ship's voice drops away and nothing calls from down the corridor. */
+  safe: boolean;
 }
 
 type LoopName = keyof typeof LOOPS;
@@ -47,7 +49,7 @@ class Sound {
   private buffers = new Map<string, AudioBuffer>();
   private noise: AudioBuffer | null = null;
   private enabled = true;
-  private mood: Mood = { deck: 1, low: false, dead: false };
+  private mood: Mood = { deck: 1, low: false, dead: false, safe: false };
   private beatTimer: number | undefined;
 
   /** Call from a tap. Safe to call repeatedly. */
@@ -131,6 +133,12 @@ class Sound {
         this.tone(t + 0.15, 207.65, 1.4, 0.07);
         this.tone(t + 0.5, 392, 1.1, 0.04);
         break;
+      case 'craft':
+        // A servo, then a part seating.
+        this.hiss(t, 0.3, 900, 2600, 0.1);
+        this.thump(t + 0.3, 140, 0.1, 0.25);
+        this.tone(t + 0.34, 660, 0.3, 0.05);
+        break;
       case 'whisper':
         this.breath(t);
         this.sting(0.5);
@@ -178,13 +186,13 @@ class Sound {
   private applyMood(): void {
     const ctx = this.ctx;
     if (!ctx) return;
-    const { deck, low, dead } = this.mood;
+    const { deck, low, dead, safe } = this.mood;
     const depth = Math.min(1, (deck - 1) / 9);
     const t = ctx.currentTime;
     const set = (name: LoopName, gain: number, rate: number) => {
       const loop = this.loops.get(name);
       if (!loop) return;
-      loop.gain.gain.setTargetAtTime(dead ? gain * 0.25 : gain, t, 1.5);
+      loop.gain.gain.setTargetAtTime(dead || safe ? gain * 0.25 : gain, t, 1.5);
       loop.source.playbackRate.setTargetAtTime(rate, t, 3);
     };
     // The deeper you go, the lower the ship's voice drops and the more the rumble comes up under it.
@@ -204,7 +212,7 @@ class Sound {
     const depth = Math.min(1, (this.mood.deck - 1) / 9);
     const wait = (22 - 12 * depth + Math.random() * (30 - 14 * depth)) * 1000;
     window.setTimeout(() => {
-      if (!this.mood.dead) this.sting(0.6 + 0.4 * depth);
+      if (!this.mood.dead && !this.mood.safe) this.sting(0.6 + 0.4 * depth);
       this.scheduleSting();
     }, wait);
   }

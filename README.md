@@ -19,6 +19,7 @@ grows in the open. "Deckfall" is a working title.
 - [x] Phone-first layout, installable, offline, guided first run
 - [ ] The tabletop layer: classes, ability scores and d20 checks on what you find
 - [x] Sound and atmosphere: NASA recordings, heartbeat, whispers, film grain
+- [x] Safe pods and crafting at the workbench
 - [x] Suit camera: NASA photographs per room, animated silhouettes, static
 - [ ] Dread as a mechanic: a second meter, and hatches whose labels you cannot fully trust
 - [ ] Balance pass from real play data
@@ -50,6 +51,10 @@ Every asset is free and credited in [public/CREDITS.md](public/CREDITS.md).
   retried, shared or raced. There is a daily seed.
 - **Augments, not stat points.** Each level offers three augments; pick one.
   An auto-surgeon will sell you another for a share of your health.
+- **A safe pod between decks.** The lift always stops at a sealed pod: rest
+  once, and use the workbench. Scrap and kills give parts; parts mix stims,
+  overclock what you wear, re-roll it, or fuse three pieces into one of the
+  next tier.
 - **Fights play themselves, but you can step in.** Use a stim (it costs your
   place in the turn order), run, or let it resolve instantly.
 

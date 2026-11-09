@@ -1,6 +1,6 @@
 import { AFFIX_PREFIX, ITEM_BASES, ITEM_ICONS, RARITIES, type RarityDef } from './data';
 import type { Rng } from './rng';
-import { SLOTS, STAT_KEYS, type Item, type Mods, type Slot, type StatKey } from './types';
+import { SLOTS, STAT_KEYS, type Item, type Mods, type Rarity, type Slot, type StatKey } from './types';
 
 /** Size of one stat line at a given item level, before rarity and roll variance. */
 const AFFIX_VALUE: Record<StatKey, (level: number) => number> = {
@@ -24,9 +24,16 @@ function addMod(mods: Mods, key: StatKey, amount: number): void {
   mods[key] = (mods[key] ?? 0) + Math.max(1, Math.round(amount));
 }
 
-export function makeItem(rng: Rng, id: number, floor: number, luck = 0): Item {
-  const slot: Slot = rng.pick(SLOTS);
-  const rarity = rollRarity(rng, luck);
+/** `force` fixes the slot or tier, for the workbench. Without it both are rolled. */
+export function makeItem(
+  rng: Rng,
+  id: number,
+  floor: number,
+  luck = 0,
+  force: { slot?: Slot; rarity?: Rarity } = {},
+): Item {
+  const slot: Slot = force.slot ?? rng.pick(SLOTS);
+  const rarity = RARITIES.find((r) => r.id === force.rarity) ?? rollRarity(rng, luck);
   const level = Math.max(1, floor + rng.int(-1, 1));
   const roll = () => rng.range(0.85, 1.15) * rarity.mult;
   const mods: Mods = {};
@@ -79,4 +86,26 @@ const SCORE_WEIGHT: Record<StatKey, number> = {
 export function itemScore(item: Item | null): number {
   if (!item) return 0;
   return STAT_KEYS.reduce((sum, key) => sum + (item.mods[key] ?? 0) * SCORE_WEIGHT[key], 0);
+}
+
+/** Raises every stat on an item by one overclock step, in place. Always at least +1 per stat. */
+export function overclock(item: Item, gain: number): void {
+  for (const key of STAT_KEYS) {
+    const value = item.mods[key];
+    if (value) item.mods[key] = Math.max(value + 1, Math.round(value * gain));
+  }
+  item.plus = (item.plus ?? 0) + 1;
+  item.level++;
+  item.value = Math.round(item.value * 1.2);
+}
+
+/** The tier above this one, or null at the top. */
+export function nextRarity(rarity: Rarity): Rarity | null {
+  const index = RARITIES.findIndex((r) => r.id === rarity);
+  return RARITIES[index + 1]?.id ?? null;
+}
+
+/** An item's name as shown to the player, with its overclock count. */
+export function itemName(item: Item): string {
+  return item.plus ? `${item.name} +${item.plus}` : item.name;
 }

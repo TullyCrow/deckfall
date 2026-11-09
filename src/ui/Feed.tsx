@@ -11,7 +11,7 @@ import { Icon, useDelta } from './parts';
  */
 
 /** Frames that flash up for an instant on the deeper decks. */
-const INTRUSIONS = ['helmet', 'glow', 'lift'] as const;
+const INTRUSIONS = ['helmet', 'guardian', 'lift'] as const;
 
 /** Which photograph fits the moment, or null to keep showing the last one. */
 function sceneFor(game: GameState): string | null {
@@ -30,6 +30,8 @@ function sceneFor(game: GameState): string | null {
       return 'medbay';
     case 'merchant':
       return 'trader';
+    case 'pod':
+      return 'glow';
     case 'dead':
       return 'helmet';
     case 'loot':
@@ -80,7 +82,9 @@ export function Feed({ game }: { game: GameState }) {
   const found = phase.type === 'loot' ? phase.items[0] : undefined;
   const dead = phase.type === 'dead';
   const playerDelta = useDelta(player.hp);
-  const intrusion = useIntrusion(game.floor >= 4 && !dead);
+  const safe = phase.type === 'pod';
+  // The pod is the one place the feed never shows you anything else. Until deck 8.
+  const intrusion = useIntrusion(game.floor >= 4 && !dead && (!safe || game.floor >= 8));
 
   // A clock that only moves when the game does, so the same seed shows the same timestamps.
   const seconds = game.tally.turns * 7 + game.floor * 131;
@@ -113,7 +117,7 @@ export function Feed({ game }: { game: GameState }) {
       <div key={`${scene}:${phase.type}`} className="feed-static" />
 
       <span className="feed-hud feed-hud-tl">
-        <i className="rec" /> {dead ? 'NO SIGNAL' : 'REC'} · CAM {String((game.floor % 4) + 1).padStart(2, '0')}
+        <i className="rec" /> {dead ? 'NO SIGNAL' : safe ? 'SAFE' : 'REC'} · CAM {String((game.floor % 4) + 1).padStart(2, '0')}
       </span>
       <span className="feed-hud feed-hud-br">
         DECK {String(game.floor).padStart(2, '0')} · {clock}

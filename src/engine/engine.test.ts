@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { botAction, playOut } from './bot';
-import { BAG_SIZE, FIRST_RUN_SEED, RARITIES } from './data';
+import { BAG_SIZE, CRAFT, FIRST_RUN_SEED, RARITIES } from './data';
 import { newGame, playerStats, reduce } from './engine';
 import { makeItem } from './items';
 import { createRng, hashSeed } from './rng';
@@ -136,6 +136,97 @@ describe('engine', () => {
       if (state.phase.type !== 'doors') throw new Error('expected doors');
       expect(state.phase.doors.some((door) => door.kind === 'merchant' || door.kind === 'elite')).toBe(false);
     }
+  });
+});
+
+describe('safe pod', () => {
+  /** A fresh game dropped straight into a pod, with whatever the test needs in hand. */
+  function inPod(change: (state: GameState) => void): GameState {
+    const state = structuredClone(newGame('pod'));
+    state.phase = { type: 'pod', rested: false };
+    change(state);
+    return state;
+  }
+  const weapon = (id: number, rarity: 'common' | 'uncommon' = 'common') =>
+    makeItem(createRng(id), id, 3, 0, { slot: 'weapon', rarity });
+
+  it('is where the lift stops before every new deck', () => {
+    let state = newGame('pod-stop');
+    while (state.floor === 1 && state.phase.type !== 'dead') state = reduce(state, botAction(state));
+    if (state.phase.type === 'dead') return; // this seed's bot died on deck 1; nothing to check
+    // The boon pick for any level gained comes first, then the pod, then the new deck's hatches.
+    while (state.phase.type === 'boon' || state.phase.type === 'loot') state = reduce(state, botAction(state));
+    expect(state.phase.type).toBe('pod');
+    state = reduce(state, { type: 'continue' });
+    expect(state.phase.type).toBe('doors');
+  });
+
+  it('lets you rest once', () => {
+    let state = inPod((s) => (s.player.hp = 10));
+    state = reduce(state, { type: 'rest' });
+    expect(state.player.hp).toBeGreaterThan(10);
+    expect(reduce(state, { type: 'rest' })).toBe(state);
+  });
+
+  it('gives parts for scrap and turns them into stims', () => {
+    let state = inPod((s) => s.player.bag.push(weapon(1), weapon(2), weapon(3), weapon(4), weapon(5)));
+    expect(reduce(state, { type: 'craft', recipe: 'stim' })).toBe(state);
+    for (const item of state.player.bag) state = reduce(state, { type: 'sell', itemId: item.id });
+    expect(state.player.parts).toBe(5);
+    state = { ...state, player: { ...state.player, parts: CRAFT.stim } };
+    const stims = state.player.potions;
+    state = reduce(state, { type: 'craft', recipe: 'stim' });
+    expect(state.player.potions).toBe(stims + 1);
+    expect(state.player.parts).toBe(0);
+  });
+
+  it('overclocks worn gear, for more each time, up to a limit', () => {
+    let state = inPod((s) => {
+      s.player.equipment.weapon = weapon(1);
+      s.player.parts = 999;
+    });
+    const before = playerStats(state.player).atk;
+    let spent = 0;
+    for (let i = 0; i < CRAFT.overclockMax; i++) {
+      const parts = state.player.parts;
+      state = reduce(state, { type: 'craft', recipe: 'overclock', slot: 'weapon' });
+      const cost = parts - state.player.parts;
+      expect(cost).toBeGreaterThan(spent);
+      spent = cost;
+    }
+    expect(playerStats(state.player).atk).toBeGreaterThan(before);
+    expect(state.player.equipment.weapon?.plus).toBe(CRAFT.overclockMax);
+    expect(reduce(state, { type: 'craft', recipe: 'overclock', slot: 'weapon' })).toBe(state);
+  });
+
+  it('re-rolls worn gear but keeps its tier, slot and overclocks', () => {
+    let state = inPod((s) => {
+      s.player.equipment.weapon = weapon(9001, 'uncommon');
+      s.player.parts = 999;
+    });
+    state = reduce(state, { type: 'craft', recipe: 'overclock', slot: 'weapon' });
+    const old = state.player.equipment.weapon!;
+    state = reduce(state, { type: 'craft', recipe: 'recalibrate', slot: 'weapon' });
+    const fresh = state.player.equipment.weapon!;
+    expect(fresh.id).not.toBe(old.id);
+    expect([fresh.slot, fresh.rarity, fresh.plus]).toEqual(['weapon', 'uncommon', 1]);
+  });
+
+  it('fuses three of a tier into one of the next', () => {
+    let state = inPod((s) => {
+      s.player.bag.push(weapon(1), weapon(2), weapon(3), weapon(4, 'uncommon'));
+      s.player.parts = CRAFT.fuse;
+    });
+    state = reduce(state, { type: 'craft', recipe: 'fuse', rarity: 'common' });
+    expect(state.player.bag.map((item) => item.rarity).sort()).toEqual(['uncommon', 'uncommon']);
+    expect(state.player.parts).toBe(0);
+    expect(reduce(state, { type: 'craft', recipe: 'fuse', rarity: 'uncommon' })).toBe(state);
+  });
+
+  it('has no workbench anywhere else', () => {
+    const state = newGame('no-bench');
+    expect(reduce(state, { type: 'craft', recipe: 'stim' })).toBe(state);
+    expect(reduce(state, { type: 'rest' })).toBe(state);
   });
 });
 

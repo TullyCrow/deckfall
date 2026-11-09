@@ -154,10 +154,19 @@ dl {
   border-color: var(--hp);
 }
 
+.purse {
+  display: flex;
+  gap: 0.7rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.parts {
+  color: var(--accent);
+}
+
 .credits {
   color: var(--warn);
-  font-weight: 600;
-  font-size: 0.95rem;
 }
 
 /* ---------- Player status ---------- */
@@ -257,6 +266,9 @@ dl {
   padding: 0 0.15rem;
   font-family: var(--mono);
   font-size: 0.8rem;
+  /* Older lines fade out at the top instead of being cut through the middle. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.1rem);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 1.1rem);
 }
 
 .log p {
@@ -300,6 +312,19 @@ dl {
 
 .stage-dead {
   border-color: var(--hp);
+}
+
+.stage-pod {
+  border-color: var(--accent);
+}
+
+/* The pod's workbench can be long, so the way out stays in reach at the bottom of the panel. */
+.stage-pod > .actions:last-child {
+  position: sticky;
+  bottom: -0.8rem;
+  margin: 0 -0.8rem -0.8rem;
+  padding: 0.6rem 0.8rem 0.8rem;
+  background: linear-gradient(to bottom, transparent, var(--panel) 30%);
 }
 
 h2 {
@@ -355,6 +380,9 @@ h3 {
 
 .tag-elite {
   color: var(--warn);
+}
+.tag-safe {
+  color: var(--accent);
 }
 .tag-boss {
   color: var(--hp);
@@ -1185,6 +1213,15 @@ body::after {
   pointer-events: none;
   background: radial-gradient(ellipse at center, transparent 38%, rgb(130 14 14 / 0.5) 100%);
   animation: dread 820ms ease-out infinite;
+}
+
+/* The safe pod: the one place the picture is steady and the grain backs off. */
+.is-safe .feed-scene {
+  filter: brightness(0.85) contrast(1.05) saturate(1.1);
+}
+
+.is-safe.is-deep .stage {
+  animation: rise 180ms ease-out;
 }
 
 /* Deep decks: the lights are less sure of themselves. */

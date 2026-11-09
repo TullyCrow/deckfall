@@ -1,4 +1,4 @@
 export * from './types';
 export * from './data';
-export { isBossFloor, newGame, playerStats, reduce, sacrificeCost, xpToNext } from './engine';
-export { itemScore } from './items';
+export { isBossFloor, newGame, overclockCost, playerStats, reduce, sacrificeCost, xpToNext } from './engine';
+export { itemName, itemScore, nextRarity } from './items';

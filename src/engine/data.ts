@@ -1,6 +1,6 @@
 import type { Boon, Rarity, RoomKind, Slot, StatKey, Stats } from './types';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /**
  * The ship a brand-new player boards. Chosen because its first hatch is a plain fight
@@ -67,9 +67,9 @@ export const BOSS_ICONS = ['robot-golem', 'alien-stare', 'captain-hat-profile', 
 export const AMBUSH = { name: 'Crate Lurker', icon: 'mimic-chest' } as const;
 
 export const KIND_SCALE = {
-  normal: { hp: 1, atk: 1, xp: 1, gold: 1 },
-  elite: { hp: 1.8, atk: 1.2, xp: 2, gold: 2 },
-  boss: { hp: 2.6, atk: 1.15, xp: 4, gold: 5 },
+  normal: { hp: 1, atk: 1, xp: 1, gold: 1, parts: 1 },
+  elite: { hp: 1.8, atk: 1.2, xp: 2, gold: 2, parts: 2 },
+  boss: { hp: 2.6, atk: 1.15, xp: 4, gold: 5, parts: 5 },
 } as const;
 
 export const BOONS: readonly Boon[] = [
@@ -200,3 +200,38 @@ export const WHISPERS: readonly Whisper[] = [
   { minFloor: 2, hurt: true, text: 'Something is keeping pace with you on the other side of the wall.' },
   { minFloor: 2, hurt: true, text: 'You are leaving a trail. You hope nothing is following it.' },
 ];
+
+// ---------- Safe pod and workbench ----------
+
+/** Share of max HP recovered by resting in a pod. Once per pod. */
+export const POD_REST_HEAL = 0.15;
+
+/** Parts gained by scrapping an item, on top of its credits. */
+export const PARTS_BY_RARITY: Record<Rarity, number> = { common: 1, uncommon: 2, rare: 4, epic: 7, legendary: 12 };
+
+export const CRAFT = {
+  /** Parts for one stim. */
+  stim: 6,
+  /** Parts to re-roll a worn item's stats, keeping its tier. */
+  recalibrate: 4,
+  /** Parts to fuse, on top of the items themselves. */
+  fuse: 2,
+  /** Items of one tier that fuse into one of the next. */
+  fuseCount: 3,
+  /** Parts for the first overclock of an item; each further one costs this much more. */
+  overclock: 3,
+  /** How many times one item can be overclocked. */
+  overclockMax: 5,
+  /** How much each overclock raises every stat on the item. */
+  overclockGain: 1.15,
+} as const;
+
+/** What you find when the lift stops. Later ones suggest the pod is not as private as its label says. */
+export const POD_LINES = [
+  'The lift stops between decks. A maintenance pod opens off the shaft. The label on its hatch says SAFE.',
+  'The pod seals behind you. For the first time since the airlock, nothing is moving.',
+  'A safe pod. The workbench light is already on.',
+  'The pod is warm. Someone has folded a blanket on the bench. You did not bring a blanket.',
+  'A safe pod. There are scratches round the inside of the lock, low down, where a hand would reach from the floor.',
+  'The pod seals. The camera in the corner turns to follow you, then looks away.',
+] as const;

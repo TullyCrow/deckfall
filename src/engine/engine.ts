@@ -7,6 +7,7 @@ import {
   BOSS_EVERY,
   BOSS_ICONS,
   BOSS_NAMES,
+  CRAFT,
   DOOR_WEIGHTS,
   ELITE_PREFIXES,
   HIDDEN_DOOR_CHANCE,
@@ -15,6 +16,9 @@ import {
   LOG_CAP,
   LOW_HP,
   MIMIC_CHANCE,
+  PARTS_BY_RARITY,
+  POD_LINES,
+  POD_REST_HEAL,
   POTION_HEAL,
   ROOMS_PER_FLOOR,
   SAVE_VERSION,
@@ -26,7 +30,7 @@ import {
   TRADER_LINES,
   WHISPERS,
 } from './data';
-import { makeItem } from './items';
+import { itemName, makeItem, nextRarity, overclock } from './items';
 import { createRng, hashSeed, type Rng } from './rng';
 import {
   SLOTS,
@@ -72,6 +76,11 @@ export function sacrificeCost(player: Player): number {
   return Math.round(playerStats(player).maxHp * SHRINE_SACRIFICE_COST);
 }
 
+/** Parts needed for this item's next overclock. */
+export function overclockCost(item: Item): number {
+  return CRAFT.overclock * ((item.plus ?? 0) + 1);
+}
+
 export function isBossFloor(floor: number): boolean {
   return floor % BOSS_EVERY === 0;
 }
@@ -92,6 +101,7 @@ export function newGame(seed: string, returning = false): GameState {
     floor: 1,
     room: 0,
     heard: [],
+    podPending: false,
     pendingBoons: 0,
     player: {
       level: 1,
@@ -102,6 +112,7 @@ export function newGame(seed: string, returning = false): GameState {
       bag: [],
       gold: 0,
       potions: START_POTIONS,
+      parts: 0,
     },
     phase: { type: 'doors', doors: [] },
     log: [],
@@ -207,13 +218,14 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       }
       player.equipment[item.slot] = item;
       player.hp = Math.min(player.hp, playerStats(player).maxHp);
-      say(d, `You equip the ${item.name}.`, 'info');
+      say(d, `You equip the ${itemName(item)}.`, 'info');
       if (phase.items.length === 0) settle(d, rng);
       return true;
     }
 
     case 'continue': {
-      if (phase.type !== 'loot' && phase.type !== 'shrine' && phase.type !== 'merchant') return false;
+      if (phase.type !== 'loot' && phase.type !== 'shrine' && phase.type !== 'merchant' && phase.type !== 'pod') return false;
+      if (phase.type === 'pod') say(d, `You open the pod. Deck ${d.floor} is waiting.`, 'info', 'hatch');
       settle(d, rng);
       return true;
     }
@@ -238,8 +250,10 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       const item = player.bag[index];
       if (!item) return false;
       player.bag.splice(index, 1);
+      const parts = PARTS_BY_RARITY[item.rarity];
       gainGold(d, item.value);
-      say(d, `You scrap the ${item.name} for ${item.value} credits.`, 'loot');
+      player.parts += parts;
+      say(d, `You scrap the ${itemName(item)}: ${item.value} credits, ${parts} ${parts === 1 ? 'part' : 'parts'}.`, 'loot');
       return true;
     }
 
@@ -285,6 +299,66 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       return true;
     }
 
+    case 'rest': {
+      if (phase.type !== 'pod' || phase.rested) return false;
+      const { maxHp } = playerStats(player);
+      if (player.hp >= maxHp) return false;
+      const before = player.hp;
+      player.hp = Math.min(maxHp, player.hp + Math.round(maxHp * POD_REST_HEAL));
+      phase.rested = true;
+      say(d, `You sit with your back to the hatch and close your eyes. +${player.hp - before} HP.`, 'good');
+      return true;
+    }
+
+    case 'craft': {
+      if (phase.type !== 'pod') return false;
+      switch (action.recipe) {
+        case 'stim': {
+          if (player.parts < CRAFT.stim) return false;
+          player.parts -= CRAFT.stim;
+          player.potions++;
+          say(d, 'You mix a stim at the workbench.', 'good', 'craft');
+          return true;
+        }
+        case 'overclock': {
+          const item = player.equipment[action.slot];
+          if (!item || (item.plus ?? 0) >= CRAFT.overclockMax) return false;
+          const cost = overclockCost(item);
+          if (player.parts < cost) return false;
+          player.parts -= cost;
+          overclock(item, CRAFT.overclockGain);
+          say(d, `You overclock it: ${itemName(item)}. It runs hot.`, 'good', 'craft');
+          return true;
+        }
+        case 'recalibrate': {
+          const item = player.equipment[action.slot];
+          if (!item || player.parts < CRAFT.recalibrate) return false;
+          player.parts -= CRAFT.recalibrate;
+          const fresh = makeItem(rng, d.nextId++, Math.max(item.level - (item.plus ?? 0), d.floor), 0, {
+            slot: item.slot,
+            rarity: item.rarity,
+          });
+          // Overclocks are work already paid for, so they carry over to the new roll.
+          for (let i = 0; i < (item.plus ?? 0); i++) overclock(fresh, CRAFT.overclockGain);
+          player.equipment[action.slot] = fresh;
+          player.hp = Math.min(player.hp, playerStats(player).maxHp);
+          say(d, `You strip the ${item.name} down and rebuild it: ${itemName(fresh)}.`, 'good', 'craft');
+          return true;
+        }
+        case 'fuse': {
+          const better = nextRarity(action.rarity);
+          const used = player.bag.filter((item) => item.rarity === action.rarity).slice(0, CRAFT.fuseCount);
+          if (!better || used.length < CRAFT.fuseCount || player.parts < CRAFT.fuse) return false;
+          player.parts -= CRAFT.fuse;
+          player.bag = player.bag.filter((item) => !used.includes(item));
+          const made = makeItem(rng, d.nextId++, d.floor, 0, { rarity: better });
+          player.bag.push(made);
+          say(d, `Three become one. You lift a ${made.name} off the bench.`, 'loot', 'craft');
+          return true;
+        }
+      }
+    }
+
     case 'buyPotion': {
       if (phase.type !== 'merchant' || player.gold < phase.potionPrice) return false;
       player.gold -= phase.potionPrice;
@@ -304,6 +378,13 @@ function settle(d: GameState, rng: Rng): void {
     const choices: string[] = [];
     while (choices.length < 3) choices.push(...pool.splice(rng.int(0, pool.length - 1), 1));
     d.phase = { type: 'boon', choices };
+    return;
+  }
+  // The lift always stops at a safe pod before it opens onto the next deck.
+  if (d.podPending) {
+    d.podPending = false;
+    say(d, POD_LINES[Math.min(POD_LINES.length - 1, Math.floor((d.floor - 2) / 2))] as string, 'info', 'hatch');
+    d.phase = { type: 'pod', rested: false };
     return;
   }
   whisper(d);
@@ -410,7 +491,8 @@ function enterRoom(d: GameState, kind: RoomKind, rng: Rng): void {
 function descend(d: GameState): void {
   d.floor++;
   d.room = 0;
-  say(d, `The lift takes you down to deck ${d.floor}. The doors open before it stops.`, 'info', 'hatch');
+  d.podPending = true;
+  say(d, `The lift takes you down toward deck ${d.floor}.`, 'info');
 }
 
 function newItem(d: GameState, rng: Rng, luck: number): Item {
@@ -437,7 +519,7 @@ export function makeEnemy(rng: Rng, floor: number, kind: EnemyKind, override?: {
     icon = BOSS_ICONS[index % BOSS_ICONS.length] as string;
   }
 
-  const maxHp = Math.round((22 + 9 * floor) * 1.06 ** floor * shape.hp * scale.hp);
+  const maxHp = Math.round((22 + 9 * floor) * 1.075 ** floor * shape.hp * scale.hp);
   return {
     name,
     icon,
@@ -445,7 +527,7 @@ export function makeEnemy(rng: Rng, floor: number, kind: EnemyKind, override?: {
     level: floor,
     hp: maxHp,
     maxHp,
-    atk: Math.max(1, Math.round((4 + 1.5 * floor) * 1.045 ** floor * shape.atk * scale.atk)),
+    atk: Math.max(1, Math.round((4 + 1.5 * floor) * 1.055 ** floor * shape.atk * scale.atk)),
     def: Math.round(0.8 * floor * shape.def),
     spd: Math.round(90 * shape.spd),
     gauge: 0,
@@ -527,7 +609,12 @@ function win(d: GameState, phase: CombatPhase, rng: Rng): void {
   const xp = Math.round((8 + 4 * enemy.level) * scale.xp);
   const gold = Math.round((rng.int(3, 6) + 2 * enemy.level) * scale.gold);
   gainGold(d, gold);
-  say(d, `The ${bare(enemy)} stops moving. +${xp} XP, +${gold} credits.`, 'good');
+  player.parts += scale.parts;
+  say(
+    d,
+    `The ${bare(enemy)} stops moving. +${xp} XP, +${gold} credits, +${scale.parts} ${scale.parts === 1 ? 'part' : 'parts'}.`,
+    'good',
+  );
 
   player.xp += xp;
   while (player.xp >= xpToNext(player.level)) {

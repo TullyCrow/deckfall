@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { RARITIES, STAT_KEYS, STAT_LABEL, type Item, type Mods, type Slot, type StatKey } from '../engine';
+import { RARITIES, STAT_KEYS, STAT_LABEL, itemName, type Item, type Mods, type Slot, type StatKey } from '../engine';
 
 export const SLOT_LABEL: Record<Slot, string> = { weapon: 'Weapon', armour: 'Armour', gadget: 'Gadget' };
 
@@ -97,7 +97,7 @@ export function ItemCard({ item, worn, inline = false, children }: ItemCardProps
     <div className={`item rarity-${item.rarity}`}>
       <Icon name={item.icon} size="lg" />
       <div className="item-body">
-        <div className="item-name">{item.name}</div>
+        <div className="item-name">{itemName(item)}</div>
         <div className="item-meta">
           {rarity?.label} {SLOT_LABEL[item.slot].toLowerCase()} · level {item.level}
         </div>

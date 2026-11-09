@@ -1,5 +1,5 @@
-import { BAG_SIZE, BOONS } from './data';
-import { playerStats, reduce, sacrificeCost } from './engine';
+import { BAG_SIZE, BOONS, CRAFT } from './data';
+import { overclockCost, playerStats, reduce, sacrificeCost } from './engine';
 import { itemScore } from './items';
 import type { Action, GameState, RoomKind } from './types';
 
@@ -62,6 +62,15 @@ export function botAction(state: GameState): Action {
         (entry) => entry.price <= player.gold && itemScore(entry.item) > itemScore(player.equipment[entry.item.slot]),
       );
       return index >= 0 ? { type: 'buy', index } : { type: 'continue' };
+    }
+    case 'pod': {
+      if (!phase.rested && player.hp < stats.maxHp) return { type: 'rest' };
+      if (player.potions < 3 && player.parts >= CRAFT.stim) return { type: 'craft', recipe: 'stim' };
+      const weapon = player.equipment.weapon;
+      if (weapon && (weapon.plus ?? 0) < CRAFT.overclockMax && player.parts >= overclockCost(weapon)) {
+        return { type: 'craft', recipe: 'overclock', slot: 'weapon' };
+      }
+      return { type: 'continue' };
     }
   }
 }

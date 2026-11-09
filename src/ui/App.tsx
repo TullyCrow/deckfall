@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   BAG_SIZE,
   FIRST_RUN_SEED,
+  PARTS_BY_RARITY,
   LOW_HP,
   ROOMS_PER_FLOOR,
   SLOTS,
@@ -176,7 +177,8 @@ export function App() {
   const deck = game?.floor ?? 1;
   const dead = game?.phase.type === 'dead';
   const hurtBadly = game ? !dead && game.player.hp < playerStats(game.player).maxHp * LOW_HP : false;
-  useEffect(() => sound.setMood({ deck, low: hurtBadly, dead }), [deck, hurtBadly, dead]);
+  const safe = game?.phase.type === 'pod';
+  useEffect(() => sound.setMood({ deck, low: hurtBadly, dead, safe }), [deck, hurtBadly, dead, safe]);
 
   const toggleSound = () => {
     // Applied here, inside the tap, because browsers only start audio from one.
@@ -203,7 +205,7 @@ export function App() {
   const progressLabel = atEnd ? endLabel : `Room ${position + 1} of ${ROOMS_PER_FLOOR}`;
 
   return (
-    <div className={`app play ${low ? 'is-low' : ''} ${game.floor >= 5 ? 'is-deep' : ''}`}>
+    <div className={`app play ${low ? 'is-low' : ''} ${game.floor >= 5 ? 'is-deep' : ''} ${safe ? 'is-safe' : ''}`}>
       <header className="bar">
         <div className="deck">
           <span className="deck-label">Deck</span>
@@ -215,7 +217,10 @@ export function App() {
             <i className={`pip pip-end ${boss ? 'pip-boss' : ''} ${atEnd ? 'pip-now' : ''}`} />
           </span>
         </div>
-        <span className="credits num">{player.gold} cr</span>
+        <span className="purse num">
+          <span className="parts">{player.parts} parts</span>
+          <span className="credits">{player.gold} cr</span>
+        </span>
       </header>
 
       <section
@@ -329,7 +334,7 @@ export function App() {
                   disabled={inFight || over}
                   onClick={() => dispatch({ type: 'sell', itemId: item.id })}
                 >
-                  Scrap · {item.value} cr
+                  Scrap · {item.value} cr + {PARTS_BY_RARITY[item.rarity]}p
                 </button>
               </ItemCard>
             );
@@ -341,7 +346,8 @@ export function App() {
         <ol className="howto">
           <li>Pick a hatch. Its hint tells you what is behind it.</li>
           <li>Fights run on their own. Use a stim when your health is low, or flee.</li>
-          <li>Equip better salvage and scrap the rest for credits.</li>
+          <li>Equip better salvage and scrap the rest for credits and parts.</li>
+          <li>The lift stops at a safe pod between decks: rest, and craft at the workbench.</li>
           <li>Each level gives you an augment that lasts the whole run.</li>
           <li>Three rooms, then the lift down. Every fifth deck has a guardian.</li>
           <li>Death is final. See how deep you can get.</li>

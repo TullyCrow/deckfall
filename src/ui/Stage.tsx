@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react';
 import {
   BAG_SIZE,
   BOONS,
+  CRAFT,
+  POD_REST_HEAL,
+  RARITIES,
+  SLOTS,
+  nextRarity,
+  overclockCost,
   DOOR_TEXT,
   HIDDEN_DOOR,
   SHRINE_REST_HEAL,
@@ -236,6 +242,91 @@ export function Stage({ game, dispatch, speed, newBest, onToggleSpeed, onResolve
           </div>
         </>
       );
+
+    case 'pod': {
+      const restHeal = Math.min(stats.maxHp - player.hp, Math.round(stats.maxHp * POD_REST_HEAL));
+      const worn = SLOTS.map((slot) => player.equipment[slot]).filter((item) => item !== null);
+      // Tiers you hold enough of to fuse into the tier above.
+      const fusable = RARITIES.filter(
+        (tier) =>
+          nextRarity(tier.id) !== null &&
+          player.bag.filter((item) => item.rarity === tier.id).length >= CRAFT.fuseCount,
+      );
+      const label = (id: string) => RARITIES.find((tier) => tier.id === id)?.label ?? id;
+      return (
+        <>
+          <h2>
+            Safe pod <span className="tag tag-safe">{player.parts} parts</span>
+          </h2>
+          <div className="actions actions-2">
+            <button className="btn" disabled={phase.rested || restHeal <= 0} onClick={() => dispatch({ type: 'rest' })}>
+              {phase.rested ? 'Rested' : restHeal > 0 ? `Rest · +${restHeal} HP` : 'Rest'}
+            </button>
+            <button
+              className="btn"
+              disabled={player.parts < CRAFT.stim}
+              onClick={() => dispatch({ type: 'craft', recipe: 'stim' })}
+            >
+              Mix a stim · {CRAFT.stim} parts
+            </button>
+          </div>
+
+          <h3>Workbench</h3>
+          {worn.length === 0 && fusable.length === 0 && (
+            <p className="note">Nothing to work on yet. The bench improves gear you are wearing.</p>
+          )}
+          <div className="stack">
+            {worn.map((item) => {
+              const maxed = (item.plus ?? 0) >= CRAFT.overclockMax;
+              const cost = overclockCost(item);
+              return (
+                <ItemCard key={item.id} item={item}>
+                  <button
+                    className="btn"
+                    disabled={maxed || player.parts < cost}
+                    onClick={() => dispatch({ type: 'craft', recipe: 'overclock', slot: item.slot })}
+                  >
+                    {maxed ? 'At its limit' : `Overclock · ${cost}`}
+                  </button>
+                  <button
+                    className="btn btn-quiet"
+                    disabled={player.parts < CRAFT.recalibrate}
+                    onClick={() => dispatch({ type: 'craft', recipe: 'recalibrate', slot: item.slot })}
+                  >
+                    Re-roll · {CRAFT.recalibrate}
+                  </button>
+                </ItemCard>
+              );
+            })}
+            {fusable.map((tier) => (
+              <button
+                key={tier.id}
+                className="choice door-boon"
+                disabled={player.parts < CRAFT.fuse}
+                onClick={() => dispatch({ type: 'craft', recipe: 'fuse', rarity: tier.id })}
+              >
+                <Icon name="atom-core" size="lg" />
+                <span className="choice-title">
+                  Fuse {CRAFT.fuseCount} {label(tier.id)} into 1 {label(nextRarity(tier.id) ?? '')}
+                </span>
+                <span className="choice-hint">
+                  Uses three from your pack and {CRAFT.fuse} parts. You cannot choose what comes out.
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="note">
+            Overclock raises every stat on a piece. Re-roll rebuilds it with new stats at this deck's level. Scrap gear
+            in your pack for parts.
+          </p>
+          <div className="actions">
+            <button className="btn btn-primary" onClick={() => dispatch({ type: 'continue' })}>
+              Open the hatch to deck {game.floor}
+            </button>
+          </div>
+        </>
+      );
+    }
 
     case 'dead':
       return (

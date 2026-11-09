@@ -12,6 +12,7 @@ export const TIPS = {
   boon: 'Augments last for the whole run. You choose one every time you level up.',
   shrine: 'The auto-surgeon does one job: heal you now, or hurt you now in exchange for a permanent augment.',
   merchant: 'Short of credits? Open your pack and scrap gear you do not need. Stims are usually the safest buy.',
+  pod: 'This pod is safe. Rest once, build what you need at the workbench, then open the hatch. Scrapping gear from your pack gives you parts.',
   dead: 'Death ends the run, but you now know this ship. Retry the same seed to take a different route.',
 } as const;
 
@@ -38,6 +39,7 @@ export function tipFor(game: GameState, seen: readonly string[]): TipId | null {
     case 'boon':
     case 'shrine':
     case 'merchant':
+    case 'pod':
     case 'dead':
       candidates.push(phase.type);
       break;

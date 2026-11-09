@@ -18,6 +18,8 @@ export interface Item {
   mods: Mods;
   /** Gold received when sold. */
   value: number;
+  /** Times this item has been overclocked at a workbench. Shown as "+N" after its name. */
+  plus?: number;
 }
 
 export type EnemyKind = 'normal' | 'elite' | 'boss';
@@ -64,6 +66,7 @@ export type Phase =
   | { type: 'boon'; choices: string[] }
   | { type: 'shrine' }
   | { type: 'merchant'; stock: ShopEntry[]; potionPrice: number }
+  | { type: 'pod'; rested: boolean }
   | { type: 'dead'; killedBy: string };
 
 export interface Player {
@@ -76,13 +79,15 @@ export interface Player {
   bag: Item[];
   gold: number;
   potions: number;
+  /** Crafting material, from scrapping gear. Spent at a safe pod's workbench. */
+  parts: number;
 }
 
 /** `eerie` lines are atmosphere only: things the salvager notices, or thinks they notice. */
 export type LogTone = 'info' | 'good' | 'bad' | 'loot' | 'hit' | 'hurt' | 'eerie';
 
 /** A hint to the interface about what a line should sound like, where its tone alone does not say. */
-export type Cue = 'hatch' | 'crit' | 'stim' | 'augment' | 'death';
+export type Cue = 'hatch' | 'crit' | 'stim' | 'augment' | 'death' | 'craft';
 
 export interface LogEntry {
   id: number;
@@ -110,6 +115,8 @@ export interface GameState {
   room: number;
   /** Indexes into WHISPERS already used this run, so none repeats. */
   heard: number[];
+  /** The lift has moved and the safe pod between decks has not been visited yet. */
+  podPending: boolean;
   /** Boon picks the player is still owed. */
   pendingBoons: number;
   player: Player;
@@ -133,4 +140,8 @@ export type Action =
   | { type: 'chooseBoon'; index: number }
   | { type: 'shrine'; choice: ShrineChoice }
   | { type: 'buy'; index: number }
-  | { type: 'buyPotion' };
+  | { type: 'buyPotion' }
+  | { type: 'rest' }
+  | { type: 'craft'; recipe: 'stim' }
+  | { type: 'craft'; recipe: 'overclock' | 'recalibrate'; slot: Slot }
+  | { type: 'craft'; recipe: 'fuse'; rarity: Rarity };
