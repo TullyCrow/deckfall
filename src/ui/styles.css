@@ -246,8 +246,9 @@ dl {
 /* ---------- Log: fills whatever height is left, newest line at the bottom ---------- */
 
 .log {
-  flex: 1 1 0;
-  min-height: 2.6rem;
+  flex: 0 0 auto;
+  max-height: 6.6rem;
+  min-height: 1.3rem;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -256,8 +257,6 @@ dl {
   padding: 0 0.15rem;
   font-family: var(--mono);
   font-size: 0.8rem;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 2.2rem);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 2.2rem);
 }
 
 .log p {
@@ -788,7 +787,9 @@ a:focus-visible {
 /* ---------- Title screen ---------- */
 
 .title {
-  justify-content: center;
+  position: relative;
+  justify-content: flex-end;
+  padding-bottom: calc(1.5rem + var(--safe-bottom));
   gap: 1.1rem;
   overflow-y: auto;
   padding-inline: calc(1.25rem + var(--safe-left)) calc(1.25rem + var(--safe-right));
@@ -964,6 +965,185 @@ input::placeholder {
   width: 6rem;
   height: 6rem;
 }
+.icon-sprite {
+  width: var(--sprite);
+  height: var(--sprite);
+}
+
+/* ---------- Suit camera ---------- */
+
+.feed {
+  --sprite: clamp(4.5rem, 17dvh, 9.5rem);
+  position: relative;
+  flex: 1 1 0;
+  min-height: 4.75rem;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+}
+
+.feed-scene,
+.feed-intrusion,
+.feed-static {
+  position: absolute;
+  inset: 0;
+}
+
+.feed-scene {
+  inset: -7%;
+  background: center / cover no-repeat;
+  filter: brightness(0.72) contrast(1.15) saturate(0.85);
+  animation: tune-in 520ms ease-out, drift 36s ease-in-out infinite alternate;
+}
+
+.feed-intrusion {
+  background: center / cover no-repeat;
+  filter: brightness(0.55) contrast(1.5) grayscale(1);
+  transform: scale(1.25);
+}
+
+/* A real animated GIF of television snow, blended over the picture. */
+.feed-static {
+  background: url('/fx/static.gif') center / cover;
+  image-rendering: pixelated;
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: burst 420ms steps(5) 1;
+}
+
+.feed-dead .feed-static {
+  opacity: 0.4;
+  animation: none;
+}
+
+.feed-dead .feed-scene {
+  filter: brightness(0.5) contrast(1.3) grayscale(1);
+}
+
+/* Scanlines and a dark edge, inside the frame. */
+.feed::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(to bottom, rgb(0 0 0 / 0.28) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, transparent 45%, rgb(0 0 0 / 0.75) 100%);
+}
+
+.feed-hud {
+  position: absolute;
+  z-index: 1;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: rgb(211 221 226 / 0.75);
+  text-shadow: 0 0 4px #000;
+}
+
+.feed-hud-tl {
+  top: 0.45rem;
+  left: 0.6rem;
+}
+
+.feed-hud-br {
+  right: 0.6rem;
+  bottom: 0.4rem;
+}
+
+.rec {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--hp);
+  animation: blink 1.6s steps(2) infinite;
+}
+
+.feed-dead .rec {
+  animation: none;
+  background: var(--muted);
+}
+
+/* Sprites: whatever is in the room with you, drawn over the picture. */
+
+.sprite {
+  position: absolute;
+  left: 50%;
+  bottom: 7%;
+  width: var(--sprite);
+  height: var(--sprite);
+  margin-left: calc(var(--sprite) / -2);
+  /* A black shape with light leaking round its edge is far more unsettling than a lit one.
+     The glow has to sit on this wrapper: a filter on the icon itself is cut away by its mask. */
+  --glow: rgb(150 215 205 / 0.65);
+  color: #03060a;
+  filter: drop-shadow(0 0 5px var(--glow)) drop-shadow(0 0 16px var(--glow));
+  animation: emerge 600ms ease-out, breathe 3.4s ease-in-out 600ms infinite;
+}
+
+.sprite > .icon {
+  position: absolute;
+  inset: 0;
+}
+
+.sprite-elite {
+  --glow: rgb(226 181 101 / 0.7);
+}
+
+.sprite-boss {
+  --sprite: clamp(5.5rem, 21dvh, 12rem);
+  --glow: rgb(224 86 76 / 0.8);
+}
+
+/* A faint double that never quite lines up with the thing itself. */
+.sprite > .sprite-ghost {
+  opacity: 0.3;
+  animation: afterimage 5.5s ease-in-out infinite;
+}
+
+.sprite-lunge {
+  animation: lunge 340ms ease-out;
+}
+
+.sprite-struck {
+  animation: flinch 220ms ease-out;
+}
+
+.sprite-found {
+  --glow: rgb(0 0 0 / 0.9);
+  animation: emerge 500ms ease-out, hover 4s ease-in-out 500ms infinite;
+}
+
+.sprite-found.rarity-common {
+  color: var(--rarity-common);
+}
+.sprite-found.rarity-uncommon {
+  color: var(--rarity-uncommon);
+}
+.sprite-found.rarity-rare {
+  color: var(--rarity-rare);
+}
+.sprite-found.rarity-epic {
+  color: var(--rarity-epic);
+}
+.sprite-found.rarity-legendary {
+  color: var(--rarity-legendary);
+}
+
+/* The title screen: the ship, lit, in the dark. */
+.title::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 38% 0;
+  z-index: -1;
+  background: url('/scenes/title.jpg') center 30% / cover no-repeat;
+  filter: brightness(0.85) contrast(1.1);
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  animation: drift 40s ease-in-out infinite alternate;
+}
 
 /* ---------- Atmosphere ---------- */
 
@@ -1013,6 +1193,95 @@ body::after {
 }
 
 /* ---------- Motion ---------- */
+
+@keyframes tune-in {
+  0% {
+    opacity: 0;
+    filter: brightness(2.2) contrast(2) saturate(0);
+  }
+  35% {
+    opacity: 1;
+  }
+}
+
+@keyframes drift {
+  from {
+    transform: scale(1) translate(-1.5%, 1%);
+  }
+  to {
+    transform: scale(1.09) translate(1.5%, -1.5%);
+  }
+}
+
+@keyframes burst {
+  0% {
+    opacity: 0.85;
+  }
+  60% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+@keyframes emerge {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+    filter: blur(6px);
+  }
+}
+
+@keyframes breathe {
+  50% {
+    transform: translateY(-3%) scale(1.045);
+  }
+}
+
+@keyframes hover {
+  50% {
+    transform: translateY(-6%) rotate(-3deg);
+  }
+}
+
+@keyframes afterimage {
+  0%,
+  100% {
+    transform: translate(-6%, 2%) scale(1.06);
+  }
+  40% {
+    transform: translate(7%, -3%) scale(1.12);
+  }
+  70% {
+    transform: translate(-2%, 5%) scale(1.02);
+  }
+}
+
+@keyframes lunge {
+  35% {
+    transform: scale(1.55) translateY(8%);
+    filter: brightness(1.6);
+  }
+}
+
+@keyframes flinch {
+  0% {
+    opacity: 0.2;
+    transform: translateX(-6%) scale(0.94);
+    filter: brightness(3);
+  }
+  50% {
+    transform: translateX(5%);
+  }
+}
+
 
 @keyframes grain {
   25% {
@@ -1127,6 +1396,14 @@ body::after {
 
 /* Short phones: trim the status block so the decision area keeps its room. */
 @media (max-height: 700px) {
+  /* A tip is only ever shown once; while one is up, the camera gives its space to the choices. */
+  .play:has(.tip) .feed {
+    display: none;
+  }
+  .play:has(.tip) .log {
+    flex: 1 1 auto;
+    max-height: none;
+  }
   .chips {
     display: none;
   }

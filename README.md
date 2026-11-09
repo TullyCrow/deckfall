@@ -7,6 +7,8 @@ something kills you.
 
 **Play it: https://tullycrow.github.io/deckfall/** (works on a phone, installs as an app, plays offline)
 
+<p align="center"><img src="docs/demo.gif" alt="A short recording of Deckfall being played on a phone" width="250"></p>
+
 This is a build-in-public project: the game is playable from the first commit and
 grows in the open. "Deckfall" is a working title.
 
@@ -17,6 +19,7 @@ grows in the open. "Deckfall" is a working title.
 - [x] Phone-first layout, installable, offline, guided first run
 - [ ] The tabletop layer: classes, ability scores and d20 checks on what you find
 - [x] Sound and atmosphere: NASA recordings, heartbeat, whispers, film grain
+- [x] Suit camera: NASA photographs per room, animated silhouettes, static
 - [ ] Dread as a mechanic: a second meter, and hatches whose labels you cannot fully trust
 - [ ] Balance pass from real play data
 
@@ -29,6 +32,12 @@ the log sometimes notes things that change nothing in the game and are there
 only to make you doubt the ship. Deeper down, hatch labels flicker to words
 that were not there a moment ago. When you are badly hurt you hear a heartbeat
 and red closes in from the edges of the screen.
+
+Above the log is your suit camera: a NASA photograph of a real spacecraft
+interior for each kind of room, graded dark and run through scanlines and
+static. Whatever is in the room appears in it as a black shape with light
+leaking round its edge, breathing, and lunging when it hits you. On deeper
+decks the picture is replaced, for a tenth of a second, by something else.
 
 Every asset is free and credited in [public/CREDITS.md](public/CREDITS.md).
 

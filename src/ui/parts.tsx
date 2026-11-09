@@ -31,7 +31,7 @@ export function useDelta(value: number): number {
 
 interface IconProps {
   name: string;
-  size?: 'md' | 'lg' | 'xl' | 'hero';
+  size?: 'md' | 'lg' | 'xl' | 'hero' | 'sprite';
   className?: string;
 }
 

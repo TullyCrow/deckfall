@@ -16,6 +16,7 @@ import {
   type LogEntry,
 } from '../engine';
 import { sound, type Effect } from './audio';
+import { Feed } from './Feed';
 import { Icon, ItemCard, Meter, Sheet, SLOT_LABEL, useDelta } from './parts';
 import { buzz, useInstall } from './pwa';
 import { Stage } from './Stage';
@@ -37,7 +38,7 @@ import {
 import { TIPS, tipFor, type TipId } from './tips';
 
 const STEP_MS = { 1: 520, 2: 190 } as const;
-const LOG_LINES = 8;
+const LOG_LINES = 5;
 
 function effectFor(entry: LogEntry): Effect | null {
   if (entry.cue) return entry.cue;
@@ -233,6 +234,8 @@ export function App() {
         </ul>
       </section>
 
+      <Feed game={game} />
+
       <section className="log" role="log" aria-live="polite" aria-label="Event log">
         {game.log.slice(-LOG_LINES).map((entry) => (
           <p key={entry.id} className={`log-${entry.tone}`}>
@@ -389,7 +392,6 @@ function Title({ records, soundOn, onToggleSound, onStart }: TitleProps) {
   return (
     <div className="app title">
       <header className="hero">
-        <Icon name="astronaut-helmet" size="hero" />
         <h1>Deckfall</h1>
         <p className="tagline">
           {firstTime

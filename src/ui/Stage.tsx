@@ -87,8 +87,6 @@ export function Stage({ game, dispatch, speed, newBest, onToggleSpeed, onResolve
       return (
         <>
           <div className={`foe foe-${enemy.kind}`}>
-            {/* Re-keyed on every hit so the flash animation restarts. */}
-            <Icon key={enemy.hp} name={enemy.icon} size="xl" className="struck" />
             <div className="foe-info">
               <h2>
                 {enemy.name}
