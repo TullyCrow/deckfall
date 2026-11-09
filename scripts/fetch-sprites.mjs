@@ -53,10 +53,21 @@ const SPRITES = [
 const out = join(import.meta.dirname, '..', 'public', 'sprites');
 mkdirSync(out, { recursive: true });
 
-const unclear = await (await fetch(UNCLEAR, { headers })).text();
+// The licence check must fail closed: if the list cannot be read, nothing is downloaded.
+const listResponse = await fetch(UNCLEAR, { headers });
+if (!listResponse.ok) throw new Error(`Could not read the unclear-licence list (${listResponse.status}); stopping`);
+const banned = new Set(
+  [...(await listResponse.text()).matchAll(/^\s*-\s*(\S+\.png)\s*$/gim)].map((match) => match[1].toLowerCase()),
+);
+// The list is long. A short one means its format changed and this check can no longer be trusted.
+if (banned.size < 100) throw new Error(`The unclear-licence list has only ${banned.size} entries; stopping`);
+
 for (const [path, name] of SPRITES) {
-  const file = path.split('/').pop();
-  if (unclear.includes(`- ${file}.png`)) throw new Error(`${file}.png is on the unclear-licence list; choose another`);
+  // The list names files without folders, so compare by file name, ignoring case.
+  const file = `${path.split('/').pop()}.png`.toLowerCase();
+  if (banned.has(file) || banned.has(`${path}.png`.toLowerCase())) {
+    throw new Error(`${file} is on the unclear-licence list; choose another`);
+  }
   const response = await fetch(`${TILES}/${path}.png`, { headers });
   if (!response.ok) throw new Error(`${path}: ${response.status}`);
   writeFileSync(join(out, `${name}.png`), Buffer.from(await response.arrayBuffer()));
