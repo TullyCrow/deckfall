@@ -16,8 +16,21 @@ grows in the open. "Deckfall" is a working title.
 - [x] Icons for every hostile, item and room
 - [x] Phone-first layout, installable, offline, guided first run
 - [ ] The tabletop layer: classes, ability scores and d20 checks on what you find
-- [ ] Sound
+- [x] Sound and atmosphere: NASA recordings, heartbeat, whispers, film grain
+- [ ] Dread as a mechanic: a second meter, and hatches whose labels you cannot fully trust
 - [ ] Balance pass from real play data
+
+## Tone
+
+Deckfall is meant to be eerie more than gory: a psychological thriller in a
+dead ship. The ambience is real spacecraft recordings from NASA, slowed down
+(Saturn's radio emissions, wind on Mars, a rover's metal creaks). Between rooms
+the log sometimes notes things that change nothing in the game and are there
+only to make you doubt the ship. Deeper down, hatch labels flicker to words
+that were not there a moment ago. When you are badly hurt you hear a heartbeat
+and red closes in from the edges of the screen.
+
+Every asset is free and credited in [public/CREDITS.md](public/CREDITS.md).
 
 ## What makes it different
 
@@ -76,6 +89,8 @@ Inspired by [Dungeon Crawler on Demand](https://github.com/redpangilinan/dungeon
 by Red Pangilinan. Deckfall is a new codebase and shares no code or assets
 with it.
 
+Sound, texture, type and icon credits are in [public/CREDITS.md](public/CREDITS.md).
+
 Icons are from [game-icons.net](https://game-icons.net) by Lorc, Delapouite,
 Skoll, Sbed, John Colburn and Lord Berandas, used under
 [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) with their background
@@ -86,4 +101,4 @@ edit the list in `scripts/build-icons.mjs` and run it against a clone of
 
 ## Licence
 
-Code: GPL-3.0-only. See [LICENSE](LICENSE). Icons: CC BY 3.0, as credited above.
+Code: GPL-3.0-only. See [LICENSE](LICENSE). Icons: CC BY 3.0. Audio and texture: public domain and CC0. Fonts: SIL OFL 1.1.

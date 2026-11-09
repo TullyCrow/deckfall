@@ -38,6 +38,8 @@ const ICONS = [
   'lorc/lightning-frequency', 'delapouite/nano-bot',
   // Misc
   'lorc/syringe', 'delapouite/astronaut-helmet',
+  // Atmosphere
+  'lorc/terror', 'lorc/static-waves', 'lorc/silence', 'lorc/semi-closed-eye',
 ];
 
 const source = process.argv[2];

@@ -13,6 +13,7 @@ import {
   KIND_SCALE,
   LEVEL_UP_HEAL,
   LOG_CAP,
+  LOW_HP,
   MIMIC_CHANCE,
   POTION_HEAL,
   ROOMS_PER_FLOOR,
@@ -21,6 +22,9 @@ import {
   SHRINE_SACRIFICE_COST,
   START_POTIONS,
   STAT_CAPS,
+  SURGEON_LINES,
+  TRADER_LINES,
+  WHISPERS,
 } from './data';
 import { makeItem } from './items';
 import { createRng, hashSeed, type Rng } from './rng';
@@ -28,6 +32,7 @@ import {
   SLOTS,
   STAT_KEYS,
   type Action,
+  type Cue,
   type Door,
   type Enemy,
   type EnemyKind,
@@ -73,7 +78,11 @@ export function isBossFloor(floor: number): boolean {
 
 // ---------- Public API ----------
 
-export function newGame(seed: string): GameState {
+/**
+ * `returning` marks a retry of a ship the player has already died on. It changes
+ * only the opening line, never the ship.
+ */
+export function newGame(seed: string, returning = false): GameState {
   const state: GameState = {
     version: SAVE_VERSION,
     seed,
@@ -82,6 +91,7 @@ export function newGame(seed: string): GameState {
     logSeq: 0,
     floor: 1,
     room: 0,
+    heard: [],
     pendingBoons: 0,
     player: {
       level: 1,
@@ -98,7 +108,13 @@ export function newGame(seed: string): GameState {
     tally: { kills: 0, gold: 0, damage: 0, turns: 0 },
   };
   const rng = createRng(state.rng);
-  say(state, 'The airlock seals behind you. Helmet lamp on. The derelict is silent.', 'info');
+  say(
+    state,
+    returning
+      ? 'The airlock seals behind you. You know this corridor. It has been waiting.'
+      : 'The airlock seals behind you. Your lamp finds the corridor. Nothing answers your hail.',
+    'info',
+  );
   state.phase = { type: 'doors', doors: makeDoors(state, rng) };
   state.rng = rng.state;
   return state;
@@ -147,7 +163,7 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       const before = player.hp;
       player.potions--;
       player.hp = Math.min(maxHp, player.hp + Math.round(maxHp * POTION_HEAL));
-      say(d, `You inject a stim and recover ${player.hp - before} HP.`, 'good');
+      say(d, `The stim hits. +${player.hp - before} HP. Your hands stop shaking.`, 'good', 'stim');
       // Injecting mid-fight costs your place in the turn order.
       if (phase.type === 'combat') phase.gauge = 0;
       return true;
@@ -158,10 +174,10 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       const enemy = phase.enemy;
       const odds = clamp(0.45 + (playerStats(player).spd - enemy.spd) / 300, 0.15, 0.9);
       if (rng.chance(odds)) {
-        say(d, `You slip away from the ${enemy.name}.`, 'info');
+        say(d, `You run. The ${enemy.name} does not follow. You do not look back to be sure.`, 'info');
         settle(d, rng);
       } else {
-        say(d, `The ${enemy.name} cuts off your escape.`, 'bad');
+        say(d, `The ${enemy.name} is already between you and the hatch.`, 'bad');
         enemy.gauge = 0;
         enemyAttack(d, phase, rng);
       }
@@ -235,7 +251,7 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       // New max HP arrives filled, so Reinforced Frame is never a dead pick at low health.
       player.hp += boon.mods.maxHp ?? 0;
       d.pendingBoons--;
-      say(d, `Augment installed: ${boon.name} (${boon.desc}).`, 'good');
+      say(d, `Augment installed: ${boon.name} (${boon.desc}).`, 'good', 'augment');
       settle(d, rng);
       return true;
     }
@@ -246,13 +262,13 @@ function apply(d: GameState, action: Action, rng: Rng): boolean {
       if (action.choice === 'rest') {
         const before = player.hp;
         player.hp = Math.min(maxHp, player.hp + Math.round(maxHp * SHRINE_REST_HEAL));
-        say(d, `The auto-surgeon patches you up: +${player.hp - before} HP.`, 'good');
+        say(d, `The auto-surgeon closes your wounds. +${player.hp - before} HP. It hums while it works.`, 'good');
       } else {
         const cost = sacrificeCost(player);
         if (player.hp <= cost) return false;
         player.hp -= cost;
         d.pendingBoons++;
-        say(d, `The auto-surgeon cuts deep (-${cost} HP) and fits something new.`, 'bad');
+        say(d, `The auto-surgeon opens you up. -${cost} HP. You watch it put something in.`, 'bad');
       }
       settle(d, rng);
       return true;
@@ -290,7 +306,37 @@ function settle(d: GameState, rng: Rng): void {
     d.phase = { type: 'boon', choices };
     return;
   }
+  whisper(d);
   d.phase = { type: 'doors', doors: makeDoors(d, rng) };
+}
+
+/**
+ * Sometimes adds an unsettling line before the next set of hatches, more often the deeper you are.
+ * It draws from its own generator, keyed to where you are in the run, so atmosphere can be
+ * rewritten freely without changing how any seed plays.
+ */
+function whisper(d: GameState): void {
+  if (d.floor < 2) return;
+  const mood = createRng(hashSeed(`${d.seed}|whisper|${d.floor}|${d.room}|${d.tally.turns}`));
+  if (!mood.chance(Math.min(0.55, 0.15 + 0.06 * d.floor))) return;
+  const hurt = d.player.hp < playerStats(d.player).maxHp * LOW_HP;
+  const options = WHISPERS.map((entry, index) => ({ entry, index })).filter(
+    ({ entry, index }) => entry.minFloor <= d.floor && (!entry.hurt || hurt) && !d.heard.includes(index),
+  );
+  if (options.length === 0) return;
+  // When hurt, the lines about being hurt come first.
+  const urgent = options.filter(({ entry }) => entry.hurt);
+  const { entry, index } = mood.pick(urgent.length > 0 ? urgent : options);
+  d.heard.push(index);
+  say(
+    d,
+    entry.text
+      .replace('{kills}', String(d.tally.kills))
+      .replace('{seed}', d.seed)
+      .replace('{floor}', String(d.floor))
+      .replace('{next}', String(d.floor + 1)),
+    'eerie',
+  );
 }
 
 function makeDoors(d: GameState, rng: Rng): Door[] {
@@ -339,18 +385,18 @@ function enterRoom(d: GameState, kind: RoomKind, rng: Rng): void {
       }
       const gold = rng.int(8, 14) + 4 * d.floor;
       gainGold(d, gold);
-      say(d, `You crack a cargo crate: ${gold} credits and something more.`, 'loot');
+      say(d, `The crate was already unsealed. ${gold} credits, and something left behind.`, 'loot');
       const items = [newItem(d, rng, 0.6)];
       if (rng.chance(0.25)) items.push(newItem(d, rng, 0.6));
       d.phase = { type: 'loot', items };
       break;
     }
     case 'shrine':
-      say(d, 'An auto-surgeon unfolds from the ceiling, arms twitching.', 'info');
+      say(d, SURGEON_LINES[(d.floor + d.room) % SURGEON_LINES.length] as string, 'info', 'hatch');
       d.phase = { type: 'shrine' };
       break;
     case 'merchant': {
-      say(d, 'A scavenger looks up from a crate. "Still breathing? Buy something."', 'info');
+      say(d, TRADER_LINES[(d.floor + d.room) % TRADER_LINES.length] as string, 'info', 'hatch');
       const stock = [0, 1, 2].map(() => {
         const item = newItem(d, rng, 1);
         return { item, price: item.value * 4 };
@@ -364,7 +410,7 @@ function enterRoom(d: GameState, kind: RoomKind, rng: Rng): void {
 function descend(d: GameState): void {
   d.floor++;
   d.room = 0;
-  say(d, `You ride the lift down to deck ${d.floor}.`, 'info');
+  say(d, `The lift takes you down to deck ${d.floor}. The doors open before it stops.`, 'info', 'hatch');
 }
 
 function newItem(d: GameState, rng: Rng, luck: number): Item {
@@ -407,7 +453,8 @@ export function makeEnemy(rng: Rng, floor: number, kind: EnemyKind, override?: {
 }
 
 function startCombat(d: GameState, enemy: Enemy, room: RoomKind): void {
-  say(d, `${article(enemy)} ${enemy.name} blocks the way.`, enemy.kind === 'normal' ? 'info' : 'bad');
+  if (enemy.kind === 'boss') say(d, `${enemy.name} has been waiting for you.`, 'bad', 'hatch');
+  else say(d, `${article(enemy)} ${enemy.name} is in the room with you.`, enemy.kind === 'normal' ? 'info' : 'bad', 'hatch');
   d.phase = { type: 'combat', enemy, room, gauge: 0 };
 }
 
@@ -447,7 +494,7 @@ function combatStep(d: GameState, phase: CombatPhase, rng: Rng): void {
       d.player.hp += healed;
       line += `, siphoning ${healed}`;
     }
-    say(d, `${line}.`, 'hit');
+    say(d, `${line}.`, 'hit', isCrit ? 'crit' : undefined);
     if (enemy.hp === 0) win(d, phase, rng);
   } else {
     phase.gauge += enemyWait * stats.spd;
@@ -462,7 +509,7 @@ function enemyAttack(d: GameState, phase: CombatPhase, rng: Rng): void {
   d.player.hp = Math.max(0, d.player.hp - damage);
   say(d, `The ${bare(enemy)} ${isCrit ? 'lands a brutal blow' : 'hits you'} for ${damage}.`, 'hurt');
   if (d.player.hp === 0) {
-    say(d, `You go down on deck ${d.floor}. Your lamp flickers out.`, 'bad');
+    say(d, `You go down on deck ${d.floor}. Your lamp stays on for a while. Then it does not.`, 'bad', 'death');
     d.phase = { type: 'dead', killedBy: enemy.name };
   }
 }
@@ -480,7 +527,7 @@ function win(d: GameState, phase: CombatPhase, rng: Rng): void {
   const xp = Math.round((8 + 4 * enemy.level) * scale.xp);
   const gold = Math.round((rng.int(3, 6) + 2 * enemy.level) * scale.gold);
   gainGold(d, gold);
-  say(d, `The ${bare(enemy)} goes down. +${xp} XP, +${gold} credits.`, 'good');
+  say(d, `The ${bare(enemy)} stops moving. +${xp} XP, +${gold} credits.`, 'good');
 
   player.xp += xp;
   while (player.xp >= xpToNext(player.level)) {
@@ -512,8 +559,8 @@ function gainGold(d: GameState, amount: number): void {
   d.tally.gold += amount;
 }
 
-function say(d: GameState, text: string, tone: LogTone): void {
-  d.log.push({ id: d.logSeq++, text: text.trimStart(), tone });
+function say(d: GameState, text: string, tone: LogTone, cue?: Cue): void {
+  d.log.push({ id: d.logSeq++, text: text.trimStart(), tone, ...(cue ? { cue } : {}) });
 }
 
 function clamp(value: number, min: number, max: number): number {

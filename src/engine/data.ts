@@ -1,6 +1,6 @@
 import type { Boon, Rarity, RoomKind, Slot, StatKey, Stats } from './types';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /**
  * The ship a brand-new player boards. Chosen because its first hatch is a plain fight
@@ -143,13 +143,60 @@ export const DOOR_WEIGHTS: readonly (readonly [RoomKind, number])[] = [
 ];
 
 export const DOOR_TEXT: Record<RoomKind, { icon: string; title: string; hint: string }> = {
-  fight: { icon: 'claw-slashes', title: 'Scratched hatch', hint: 'Something moves behind it. A fight.' },
-  elite: { icon: 'dread-skull', title: 'Buckled bulkhead', hint: 'Bent outward from inside. A dangerous foe, better salvage.' },
-  treasure: { icon: 'cargo-crate', title: 'Cargo lock', hint: 'The manifest light is still green. Salvage, probably.' },
-  shrine: { icon: 'medical-pack', title: 'Med bay', hint: 'An auto-surgeon on standby power. Patch up, or upgrade.' },
-  merchant: { icon: 'trade', title: 'Lit compartment', hint: 'A trade beacon pings. A scavenger with stock to sell.' },
+  fight: { icon: 'claw-slashes', title: 'Scratched hatch', hint: 'Something is moving on the other side. It stops when you stop. A fight.' },
+  elite: { icon: 'dread-skull', title: 'Buckled bulkhead', hint: 'Bent outward, from the inside. Whatever did it is still in there. Dangerous, better salvage.' },
+  treasure: { icon: 'cargo-crate', title: 'Cargo lock', hint: 'The manifest light is green. Someone sealed this in a hurry. Salvage, probably.' },
+  shrine: { icon: 'medical-pack', title: 'Med bay', hint: 'An auto-surgeon on standby. Heal, or let it change you.' },
+  merchant: { icon: 'trade', title: 'Lit compartment', hint: 'A light is on. Someone alive is in there, selling.' },
   boss: { icon: 'crowned-skull', title: 'Blast door', hint: 'Whatever holds this deck is behind it. There is no way round.' },
-  stairs: { icon: 'elevator', title: 'Lift shaft', hint: 'The way down to the next deck.' },
+  stairs: { icon: 'elevator', title: 'Lift shaft', hint: 'The way down. The lift was called before you got here.' },
 };
 
-export const HIDDEN_DOOR = { icon: 'secret-door', title: 'Dead panel', hint: 'No power, no readout. It could be anything.' };
+export const HIDDEN_DOOR = { icon: 'secret-door', title: 'Dead panel', hint: 'No power, no readout. You can hear breathing. It may be yours.' };
+
+/** What you find when you open the med bay. One is chosen by where you are, so repeat visits read differently. */
+export const SURGEON_LINES = [
+  'An auto-surgeon unfolds from the ceiling. Its last patient is still on the table.',
+  'The auto-surgeon is already running when you come in. It turns each of its arms toward you.',
+  'An auto-surgeon waits over an empty table. The restraints are done up.',
+] as const;
+
+export const TRADER_LINES = [
+  'A scavenger sits among the crates and does not look up. "You made more noise than the last one. Buy something."',
+  'The scavenger has laid the stock out neatly. "I heard you two decks up," they say. "Buy something."',
+  'A scavenger counts credits by lamplight. "Do not tell me what you saw down there. Buy something."',
+] as const;
+
+export interface Whisper {
+  text: string;
+  /** First deck this can appear on. */
+  minFloor: number;
+  /** Only when the salvager is badly hurt. */
+  hurt?: boolean;
+}
+
+/**
+ * Things the salvager notices between rooms. They change nothing in the game;
+ * they are there to make the player doubt the ship, and then themselves.
+ * `{kills}`, `{seed}`, `{floor}` and `{next}` are filled in from the run.
+ */
+export const WHISPERS: readonly Whisper[] = [
+  { minFloor: 2, text: 'Somewhere below, something is knocking. Three, then a pause. Three, then a pause.' },
+  { minFloor: 2, text: 'Your suit radio clicks twice. No carrier. No voice.' },
+  { minFloor: 2, text: 'The air recyclers are off. You can still hear breathing.' },
+  { minFloor: 2, text: 'The emergency lights dim as you pass, and come back up behind you.' },
+  { minFloor: 2, text: 'Every chair in this compartment has been turned to face the hatch.' },
+  { minFloor: 3, text: 'The deck plan on the wall shows this room twice.' },
+  { minFloor: 3, text: 'Bootprints in the dust, your size. They lead the other way.' },
+  { minFloor: 3, text: "A child's drawing is taped to the bulkhead. The figure in it is wearing your suit." },
+  { minFloor: 4, text: 'Someone has scratched a tally into the wall. {kills} marks. It matches.' },
+  { minFloor: 4, text: 'You count the hatches again. There is one more than there was.' },
+  { minFloor: 4, text: 'The lift panel reads deck {next}. Then {floor}. Then it goes dark.' },
+  { minFloor: 5, text: 'A crew locker with your name on it. It is not empty. You do not open it.' },
+  { minFloor: 5, text: 'For a moment the hatch labels are in your handwriting.' },
+  { minFloor: 6, text: 'The radio whispers a string of characters. It takes you a moment to recognise it: {seed}.' },
+  { minFloor: 6, text: 'You pass a viewport. The reflection is a step behind you.' },
+  { minFloor: 2, hurt: true, text: 'Your heartbeat is very loud. It takes a while to notice it is not in time with your pulse.' },
+  { minFloor: 2, hurt: true, text: 'Something is keeping pace with you on the other side of the wall.' },
+  { minFloor: 2, hurt: true, text: 'You are leaving a trail. You hope nothing is following it.' },
+];

@@ -13,7 +13,9 @@ import {
   xpToNext,
   type Action,
   type GameState,
+  type LogEntry,
 } from '../engine';
+import { sound, type Effect } from './audio';
 import { Icon, ItemCard, Meter, Sheet, SLOT_LABEL, useDelta } from './parts';
 import { buzz, useInstall } from './pwa';
 import { Stage } from './Stage';
@@ -21,11 +23,13 @@ import {
   dailySeed,
   loadGame,
   loadRecords,
+  loadSound,
   loadSpeed,
   loadTips,
   randomSeed,
   saveGame,
   saveRecords,
+  saveSound,
   saveSpeed,
   saveTips,
   type Records,
@@ -34,6 +38,15 @@ import { TIPS, tipFor, type TipId } from './tips';
 
 const STEP_MS = { 1: 520, 2: 190 } as const;
 const LOG_LINES = 8;
+
+function effectFor(entry: LogEntry): Effect | null {
+  if (entry.cue) return entry.cue;
+  if (entry.tone === 'hit') return 'hit';
+  if (entry.tone === 'hurt') return 'hurt';
+  if (entry.tone === 'loot') return 'pickup';
+  if (entry.tone === 'eerie') return 'whisper';
+  return null;
+}
 
 function runSignature(game: GameState): string {
   return `${game.seed}:${game.tally.turns}:${game.floor}`;
@@ -45,20 +58,52 @@ export function App() {
   const [speed, setSpeed] = useState<1 | 2>(loadSpeed);
   const [seenTips, setSeenTips] = useState<string[]>(loadTips);
   const [sheet, setSheet] = useState<'pack' | 'menu' | null>(null);
+  const [soundOn, setSoundOn] = useState(loadSound);
 
   const dispatch = useCallback((action: Action) => {
     setGame((current) => (current ? reduce(current, action) : current));
   }, []);
 
-  const start = useCallback((seed: string) => {
-    setSheet(null);
-    setGame(newGame(seed.trim() || randomSeed()));
-  }, []);
+  const start = useCallback(
+    (seed: string) => {
+      const chosen = seed.trim() || randomSeed();
+      setSheet(null);
+      // Coming back to a ship you died on gets a different welcome.
+      setGame(newGame(chosen, records.lastRun.startsWith(`${chosen}:`)));
+      sound.start();
+    },
+    [records.lastRun],
+  );
 
   useEffect(() => saveGame(game), [game]);
   useEffect(() => saveRecords(records), [records]);
   useEffect(() => saveSpeed(speed), [speed]);
   useEffect(() => saveTips(seenTips), [seenTips]);
+  useEffect(() => {
+    saveSound(soundOn);
+    sound.setEnabled(soundOn);
+  }, [soundOn]);
+
+  // Browsers only allow sound after a tap, so a resumed run starts its sound on the first one.
+  useEffect(() => {
+    const wake = () => sound.start();
+    window.addEventListener('pointerdown', wake, { once: true });
+    return () => window.removeEventListener('pointerdown', wake);
+  }, []);
+
+  // Play the sound of whatever was just added to the log.
+  const lastHeard = useRef(game?.log.at(-1)?.id ?? -1);
+  useEffect(() => {
+    const newest = game?.log.at(-1)?.id ?? -1;
+    if (!game || newest < lastHeard.current) lastHeard.current = -1; // a new run restarts the numbering
+    const fresh = game ? game.log.filter((entry) => entry.id > lastHeard.current) : [];
+    lastHeard.current = newest;
+    // A skipped fight arrives all at once; play only how it ended.
+    for (const entry of fresh.length > 5 ? fresh.slice(-2) : fresh) {
+      const effect = effectFor(entry);
+      if (effect) sound.play(effect);
+    }
+  }, [game]);
 
   // Combat plays itself one action at a time; the player can step in with a stim or run.
   const phaseType = game?.phase.type;
@@ -126,7 +171,20 @@ export function App() {
     });
   }, []);
 
-  if (!game) return <Title records={records} onStart={start} />;
+  // The ship's voice drops and the heartbeat starts as things get worse.
+  const deck = game?.floor ?? 1;
+  const dead = game?.phase.type === 'dead';
+  const hurtBadly = game ? !dead && game.player.hp < playerStats(game.player).maxHp * LOW_HP : false;
+  useEffect(() => sound.setMood({ deck, low: hurtBadly, dead }), [deck, hurtBadly, dead]);
+
+  const toggleSound = () => {
+    // Applied here, inside the tap, because browsers only start audio from one.
+    sound.setEnabled(!soundOn);
+    sound.start();
+    setSoundOn(!soundOn);
+  };
+
+  if (!game) return <Title records={records} soundOn={soundOn} onToggleSound={toggleSound} onStart={start} />;
 
   const { player, phase } = game;
   const stats = playerStats(player);
@@ -144,7 +202,7 @@ export function App() {
   const progressLabel = atEnd ? endLabel : `Room ${position + 1} of ${ROOMS_PER_FLOOR}`;
 
   return (
-    <div className="app play">
+    <div className={`app play ${low ? 'is-low' : ''} ${game.floor >= 5 ? 'is-deep' : ''}`}>
       <header className="bar">
         <div className="deck">
           <span className="deck-label">Deck</span>
@@ -289,7 +347,13 @@ export function App() {
           Ship seed <span className="num">{game.seed}</span> · best deck {records.bestDeck} · {records.runs} run
           {records.runs === 1 ? '' : 's'}
         </p>
-        <div className="actions">
+        <p className="note">
+          Sound, type, texture and icon <a href="./CREDITS.md">credits</a>.
+        </p>
+        <div className="actions actions-2">
+          <button className="btn" onClick={toggleSound} aria-pressed={soundOn}>
+            Sound: {soundOn ? 'on' : 'off'}
+          </button>
           <button
             className="btn"
             onClick={() => {
@@ -307,7 +371,14 @@ export function App() {
   );
 }
 
-function Title({ records, onStart }: { records: Records; onStart: (seed: string) => void }) {
+interface TitleProps {
+  records: Records;
+  soundOn: boolean;
+  onToggleSound: () => void;
+  onStart: (seed: string) => void;
+}
+
+function Title({ records, soundOn, onToggleSound, onStart }: TitleProps) {
   const [seed, setSeed] = useState('');
   const { mode, install } = useInstall();
   const firstTime = records.runs === 0;
@@ -320,7 +391,11 @@ function Title({ records, onStart }: { records: Records; onStart: (seed: string)
       <header className="hero">
         <Icon name="astronaut-helmet" size="hero" />
         <h1>Deckfall</h1>
-        <p className="tagline">A dead ship, drifting. Every deck is worse than the last. See how deep you get.</p>
+        <p className="tagline">
+          {firstTime
+            ? 'The ship went quiet nine years ago. Last week its beacon started again. You were closest.'
+            : 'It let you leave. You came back anyway.'}
+        </p>
       </header>
 
       <div className="title-actions">
@@ -333,6 +408,11 @@ function Title({ records, onStart }: { records: Records; onStart: (seed: string)
           </button>
         )}
       </div>
+
+      <button className="sound-toggle" onClick={onToggleSound} aria-pressed={soundOn}>
+        <Icon name={soundOn ? 'static-waves' : 'silence'} />
+        <span>{soundOn ? 'Sound on. Best with headphones.' : 'Sound off'}</span>
+      </button>
 
       <ol className="steps">
         <li>
@@ -390,9 +470,9 @@ function Title({ records, onStart }: { records: Records; onStart: (seed: string)
       )}
 
       <p className="credit">
-        Free software under GPL-3.0. Inspired by Dungeon Crawler on Demand by Red Pangilinan. Icons by Lorc, Delapouite,
-        Skoll, Sbed, John Colburn and Lord Berandas from <a href="https://game-icons.net">game-icons.net</a>, CC BY 3.0 (
-        <a href="./icons/CREDITS.md">full credits</a>).
+        Free software under GPL-3.0. Inspired by Dungeon Crawler on Demand by Red Pangilinan. Ambience from NASA
+        spacecraft recordings. Icons from <a href="https://game-icons.net">game-icons.net</a>, CC BY 3.0. Full{' '}
+        <a href="./CREDITS.md">credits</a>.
       </p>
     </div>
   );

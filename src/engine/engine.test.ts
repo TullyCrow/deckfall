@@ -139,6 +139,36 @@ describe('engine', () => {
   });
 });
 
+describe('atmosphere', () => {
+  it('adds unsettling lines on deeper decks without ever repeating one', () => {
+    let seen = 0;
+    for (let i = 0; i < 20; i++) {
+      const lines: string[] = [];
+      let state = newGame(`whisper-${i}`);
+      let last = -1;
+      for (let step = 0; step < 20_000 && state.phase.type !== 'dead'; step++) {
+        state = reduce(state, botAction(state));
+        for (const entry of state.log) {
+          if (entry.id > last && entry.tone === 'eerie') lines.push(entry.text);
+        }
+        last = state.log[state.log.length - 1]?.id ?? last;
+      }
+      expect(new Set(lines).size).toBe(lines.length);
+      expect(lines.some((line) => line.includes('{'))).toBe(false);
+      seen += lines.length;
+    }
+    expect(seen).toBeGreaterThan(10);
+  });
+
+  it('greets a returning player differently without changing the ship', () => {
+    const first = newGame('again');
+    const second = newGame('again', true);
+    expect(second.log[0]?.text).not.toBe(first.log[0]?.text);
+    expect(second.phase).toEqual(first.phase);
+    expect(second.rng).toBe(first.rng);
+  });
+});
+
 describe('first run', () => {
   it('opens with a plain fight that the player wins and that drops a weapon', () => {
     let state = newGame(FIRST_RUN_SEED);

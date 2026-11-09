@@ -10,7 +10,7 @@ alien-bug, astronaut-helmet, atom-core, bandit, battle-mech, captain-hat-profile
 
 ## Lorc
 
-alien-stare, armor-vest, circuitry, claw-slashes, crowned-skull, dread-skull, energy-sword, layered-armor, leather-vest, lightning-frequency, lightning-saber, microchip, muscle-up, pirate-skull, radar-dish, ray-gun, robot-golem, shield-reflect, space-suit, spectre, sprint, syringe, targeting, trade
+alien-stare, armor-vest, circuitry, claw-slashes, crowned-skull, dread-skull, energy-sword, layered-armor, leather-vest, lightning-frequency, lightning-saber, microchip, muscle-up, pirate-skull, radar-dish, ray-gun, robot-golem, semi-closed-eye, shield-reflect, silence, space-suit, spectre, sprint, static-waves, syringe, targeting, terror, trade
 
 ## Lord Berandas
 

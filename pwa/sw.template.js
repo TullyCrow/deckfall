@@ -22,17 +22,20 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Lookups are limited to this version's own cache, which holds only the static files listed above.
+// ignoreVary is safe for that reason, and needed because some servers add a Vary header to every response.
+const stored = (key) => caches.open(CACHE).then((cache) => cache.match(key, { ignoreVary: true }));
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
 
   // The page itself: try the network first so a new version arrives promptly, fall back to the stored copy offline.
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match('./', { ignoreVary: true })));
+    event.respondWith(fetch(request).catch(() => stored('./')));
     return;
   }
 
   // Everything else is either fingerprinted or rebuilt with a new VERSION, so the stored copy is always right.
-  // ignoreVary: some servers add a Vary header that would otherwise make the stored copy miss.
-  event.respondWith(caches.match(request, { ignoreSearch: true, ignoreVary: true }).then((hit) => hit ?? fetch(request)));
+  event.respondWith(stored(request).then((hit) => hit ?? fetch(request)));
 });

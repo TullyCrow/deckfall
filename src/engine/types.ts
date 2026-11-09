@@ -78,12 +78,17 @@ export interface Player {
   potions: number;
 }
 
-export type LogTone = 'info' | 'good' | 'bad' | 'loot' | 'hit' | 'hurt';
+/** `eerie` lines are atmosphere only: things the salvager notices, or thinks they notice. */
+export type LogTone = 'info' | 'good' | 'bad' | 'loot' | 'hit' | 'hurt' | 'eerie';
+
+/** A hint to the interface about what a line should sound like, where its tone alone does not say. */
+export type Cue = 'hatch' | 'crit' | 'stim' | 'augment' | 'death';
 
 export interface LogEntry {
   id: number;
   text: string;
   tone: LogTone;
+  cue?: Cue;
 }
 
 export interface Tally {
@@ -103,6 +108,8 @@ export interface GameState {
   floor: number;
   /** Rooms entered on the current floor. */
   room: number;
+  /** Indexes into WHISPERS already used this run, so none repeats. */
+  heard: number[];
   /** Boon picks the player is still owed. */
   pendingBoons: number;
   player: Player;

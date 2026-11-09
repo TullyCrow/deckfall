@@ -4,6 +4,7 @@ const SAVE_KEY = 'deckfall.save.v1';
 const RECORDS_KEY = 'deckfall.records.v1';
 const TIPS_KEY = 'deckfall.tips.v1';
 const SPEED_KEY = 'deckfall.speed.v1';
+const SOUND_KEY = 'deckfall.sound.v1';
 
 export interface Records {
   bestDeck: number;
@@ -66,6 +67,14 @@ export function loadSpeed(): 1 | 2 {
 
 export function saveSpeed(speed: 1 | 2): void {
   write(SPEED_KEY, speed);
+}
+
+export function loadSound(): boolean {
+  return read<boolean>(SOUND_KEY) !== false;
+}
+
+export function saveSound(on: boolean): void {
+  write(SOUND_KEY, on);
 }
 
 export function randomSeed(): string {

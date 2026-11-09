@@ -22,9 +22,10 @@ function serviceWorker(): Plugin {
       const files = (readdirSync(outDir, { recursive: true, withFileTypes: true }) as import('node:fs').Dirent[])
         .filter((entry) => entry.isFile())
         .map((entry) => relative(outDir, join(entry.parentPath, entry.name)).replaceAll('\\', '/'))
+        // Skipped: docs, source maps and the old .woff font format (every current browser takes .woff2).
         // index.html is stored as './' below; some servers redirect the explicit name, and a
         // redirected copy cannot be used to answer a page load.
-        .filter((file) => !['sw.js', 'index.html'].includes(file) && !file.endsWith('.md') && !file.endsWith('.map'))
+        .filter((file) => !['sw.js', 'index.html'].includes(file) && !/\.(md|map|woff)$/.test(file))
         .sort();
       const hash = createHash('sha256');
       for (const file of files) hash.update(file).update(readFileSync(join(outDir, file)));

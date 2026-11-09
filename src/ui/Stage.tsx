@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   BAG_SIZE,
   BOONS,
@@ -11,6 +12,33 @@ import {
   type GameState,
 } from '../engine';
 import { Icon, ItemCard, Meter } from './parts';
+
+/** Words that briefly replace a hatch label on the deeper decks. The player is not meant to be sure they saw them. */
+const INTRUSIONS = ['behind you', 'not this one', 'you again', 'it heard that', 'still here', 'turn around', 'do not sleep'];
+
+/**
+ * A label that, when `active`, is replaced for a fraction of a second every so often.
+ * Purely for unease: it never changes what the hatch is. Off when the player prefers reduced motion.
+ */
+function Unsteady({ text, active }: { text: string; active: boolean }) {
+  const [intrusion, setIntrusion] = useState<string | null>(null);
+  useEffect(() => {
+    if (!active || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let timer: number;
+    const arm = () => {
+      timer = window.setTimeout(() => {
+        setIntrusion(INTRUSIONS[Math.floor(Math.random() * INTRUSIONS.length)] as string);
+        timer = window.setTimeout(() => {
+          setIntrusion(null);
+          arm();
+        }, 130 + Math.random() * 170);
+      }, 7000 + Math.random() * 24000);
+    };
+    arm();
+    return () => window.clearTimeout(timer);
+  }, [active]);
+  return <span className={`choice-title ${intrusion ? 'intrusion' : ''}`}>{intrusion ?? text}</span>;
+}
 
 interface StageProps {
   game: GameState;
@@ -41,10 +69,11 @@ export function Stage({ game, dispatch, speed, newBest, onToggleSpeed, onResolve
                 <button
                   key={index}
                   className={`choice ${door.hidden ? 'door-hidden' : `door-${door.kind}`}`}
+                  aria-label={`${text.title}. ${text.hint}`}
                   onClick={() => dispatch({ type: 'chooseDoor', index })}
                 >
                   <Icon name={text.icon} size="lg" />
-                  <span className="choice-title">{text.title}</span>
+                  <Unsteady text={text.title} active={game.floor >= 3} />
                   <span className="choice-hint">{text.hint}</span>
                 </button>
               );
@@ -213,10 +242,16 @@ export function Stage({ game, dispatch, speed, newBest, onToggleSpeed, onResolve
     case 'dead':
       return (
         <>
-          <h2>Signal lost</h2>
-          <p className="note">
-            Killed by {phase.killedBy} on deck {game.floor}.
-          </p>
+          <div className="foe foe-boss">
+            <Icon name="terror" size="xl" />
+            <div className="foe-info">
+              <h2>Signal lost</h2>
+              <p className="note">
+                Killed by {phase.killedBy} on deck {game.floor}. Your suit recorder ran for another{' '}
+                {11 + (game.tally.turns % 47)} minutes.
+              </p>
+            </div>
+          </div>
           {newBest && <p className="best">New best: deck {game.floor}</p>}
           <dl className="summary">
             <div>
